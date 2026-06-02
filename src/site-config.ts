@@ -56,15 +56,16 @@ export const MODES = [
 ] as const;
 
 // --- DLC / packs (multi, ANY semantics) ---
-// TODO: verify release order. Listed here in the order Odjit provided,
-// which is roughly listing order, not necessarily chronological.
+// Listed in release order (oldest to newest). When a new pack ships, append
+// it to the bottom; never reorder existing entries (their slugs are URL-stable
+// but the rail order is meaningful to long-time players).
 export const DLCS = [
-  { slug: 'eldest-bloodline',   label: 'Eldest Bloodline',     fullName: "Founder's Pack: Eldest Bloodline" },
-  { slug: 'castlevania',        label: 'Castlevania',          fullName: 'Legacy of Castlevania Premium Pack' },
-  { slug: 'draculas-relics',    label: "Dracula's Relics",     fullName: "Dracula's Relics Pack" },
-  { slug: 'sinister-evolution', label: 'Sinister Evolution',   fullName: 'Sinister Evolution Pack' },
-  { slug: 'haunted-nights',     label: 'Haunted Nights',       fullName: 'Haunted Nights Castle Pack' },
-  { slug: 'eternal-dominance',  label: 'Eternal Dominance',    fullName: 'Eternal Dominance Pack' }
+  { slug: 'eldest-bloodline',   label: 'Eldest Bloodline',     fullName: "Founder's Pack: Eldest Bloodline" },  // May 17, 2022
+  { slug: 'draculas-relics',    label: "Dracula's Relics",     fullName: "Dracula's Relics Pack" },              // May 17, 2022
+  { slug: 'haunted-nights',     label: 'Haunted Nights',       fullName: 'Haunted Nights Castle Pack' },         // Oct 24, 2022
+  { slug: 'sinister-evolution', label: 'Sinister Evolution',   fullName: 'Sinister Evolution Pack' },            // May 17, 2023
+  { slug: 'castlevania',        label: 'Castlevania',          fullName: 'Legacy of Castlevania Premium Pack' }, // May 8,  2024
+  { slug: 'eternal-dominance',  label: 'Eternal Dominance',    fullName: 'Eternal Dominance Pack' }              // Apr 28, 2025
 ] as const;
 
 // --- Themes (multi) ---
