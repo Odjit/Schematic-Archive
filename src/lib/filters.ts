@@ -40,6 +40,15 @@ export interface GalleryEntry {
   updatedAt?: string;
   featured: boolean;
   tags: string[];
+  /**
+   * Auto-generated top-down floor plan. The build step writes
+   * entry-assets/<id>/floorplan.svg whenever a real schematic is present,
+   * but always advertises it here — consumers must check that the asset
+   * actually exists before rendering it (entries shipped with a text
+   * placeholder won't get one).
+   */
+  floorplan?: string;
+  warnings?: string | null;
 }
 
 export type Tab = 'featured' | 'recent' | 'all';

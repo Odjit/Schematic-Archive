@@ -5,11 +5,13 @@
   "private": true,
   "description": "The Schematic Archive: a community gallery of V Rising builds for the KindredSchematics mod.",
   "scripts": {
-    "dev": "pnpm run build-index && astro dev",
-    "build": "pnpm run build-index && astro build",
+    "dev": "pnpm run build-render-prefabs && pnpm run build-index && astro dev",
+    "build": "pnpm run build-render-prefabs && pnpm run build-index && astro build",
     "preview": "astro preview",
     "astro": "astro",
     "build-index": "node scripts/build-index.mjs",
+    "build-render-prefabs": "node scripts/build-render-prefabs.mjs",
+    "render-floorplan": "node scripts/render-floorplan.mjs",
     "validate": "node scripts/validate-manifests.mjs",
     "og": "node scripts/build-og.mjs"
   },

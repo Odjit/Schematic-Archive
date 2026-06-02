@@ -21,6 +21,7 @@ const _ = all; // kept for future related-entries logic
 const assetBase = withBase(`/entry-assets/${entry.id}`);
 const screenshots = entry.screenshots.map(s => `${assetBase}/${s}`);
 const downloadHref = `${assetBase}/${entry.schematicFile}`;
+const floorplanHref = entry.floorplan ? `${assetBase}/${entry.floorplan}` : null;
 const browseHref = withBase('/browse');
 ---
 
@@ -38,6 +39,20 @@ const browseHref = withBase('/browse');
         </header>
 
         <ScreenshotCarousel images={screenshots} alt={entry.title} />
+
+        {floorplanHref && (
+          <section class="entry__floorplan">
+            <h2>Floor plan</h2>
+            <p class="muted entry__floorplan-note">
+              Auto-generated from the schematic. The top panel shows all floors
+              merged; below it, one panel per floor (5 m height bands). Colors
+              indicate piece type — see the legend at the bottom of the image.
+            </p>
+            <div class="entry__floorplan-frame">
+              <img src={floorplanHref} alt={`Top-down floor plan of ${entry.title}`} loading="lazy" />
+            </div>
+          </section>
+        )}
 
         <section class="entry__desc">
           <h2>About this build</h2>
@@ -98,8 +113,23 @@ const browseHref = withBase('/browse');
   .entry__head h1 { margin-bottom: var(--space-2); }
   .entry__summary { font-size: 1.1rem; color: var(--color-text-soft); margin-bottom: var(--space-5); }
 
-  .entry__desc, .entry__install, .entry__report { margin-top: var(--space-6); }
-  .entry__desc h2, .entry__install h2 { margin-bottom: var(--space-3); }
+  .entry__desc, .entry__install, .entry__report, .entry__floorplan { margin-top: var(--space-6); }
+  .entry__desc h2, .entry__install h2, .entry__floorplan h2 { margin-bottom: var(--space-3); }
+
+  .entry__floorplan-note { margin-bottom: var(--space-3); font-size: 0.875rem; }
+  .entry__floorplan-frame {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border, #d6cbb0);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    overflow: auto;
+  }
+  .entry__floorplan-frame img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-inline: auto;
+  }
   .entry__install ol { padding-left: 1.25em; color: var(--color-text-soft); }
   .entry__install li { margin-bottom: var(--space-2); }
 
