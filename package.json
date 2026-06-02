@@ -10,7 +10,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "build-index": "node scripts/build-index.mjs",
-    "validate": "node scripts/validate-manifests.mjs"
+    "validate": "node scripts/validate-manifests.mjs",
+    "og": "node scripts/build-og.mjs"
   },
   "dependencies": {
     "@astrojs/preact": "^4.0.0",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.1",
+    "sharp": "^0.34.0",
     "typescript": "^5.6.0"
   },
   "packageManager": "pnpm@9.12.0"
