@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import GalleryBrowser from '../components/GalleryBrowser.tsx';
+import BuildCard from '../components/BuildCard.astro';
+import index from '../data/gallery-index.json';
+import { applySort, type GalleryEntry } from '../lib/filters';
+import '../components/gallery-browser.css';
+
+const all = index as unknown as GalleryEntry[];
+// SSR fallback: a static newest-first grid that renders before the island
+// hydrates. Once hydrated, the island replaces it with a live filterable grid.
+const ssrFallback = applySort(all, 'newest').slice(0, 12);
+---
+
+<BaseLayout title="Browse" activePage="browse" description="Browse every build in The Schematic Archive.">
+  <section class="container browse-page">
+    <header class="browse-page__head">
+      <h1>Browse the archive</h1>
+      <p class="muted">
+        {all.length} {all.length === 1 ? 'entry' : 'entries'}. Use the rail to narrow by category, tier, modes, and more.
+      </p>
+    </header>
+
+    <GalleryBrowser entries={all} client:load>
+      <div slot="fallback" class="gb__cards">
+        {ssrFallback.map(e => <BuildCard entry={e} />)}
+      </div>
+    </GalleryBrowser>
+  </section>
+</BaseLayout>
+
+<style>
+  .browse-page { padding-top: var(--space-6); padding-bottom: var(--space-7); }
+  .browse-page__head { margin-bottom: var(--space-6); }
+</style>

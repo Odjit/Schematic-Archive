@@ -1,0 +1,11 @@
+---
+interface Props {
+  label: string;
+  variant?: 'default' | 'accent';
+  title?: string;
+}
+const { label, variant = 'default', title } = Astro.props;
+---
+<span class:list={['chip', variant === 'accent' && 'accent']} title={title}>
+  {label}
+</span>

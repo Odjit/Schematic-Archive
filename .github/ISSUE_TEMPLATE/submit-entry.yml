@@ -1,0 +1,176 @@
+name: Submit an entry
+description: Submit a new build to The Schematic Archive.
+title: "[Submission] <build title>"
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing a build. Fill in the fields below and attach your
+        schematic file and screenshots. A maintainer will turn this into a PR.
+
+  - type: input
+    id: title
+    attributes:
+      label: Build title
+      placeholder: "Frostbound Keep"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Short summary
+      description: 1 to 2 sentences. Appears under the title on the card.
+      placeholder: "A defensible winter castle with a central throne room."
+    validations:
+      required: true
+
+  - type: input
+    id: author
+    attributes:
+      label: Author display name
+      placeholder: "Odjit"
+    validations:
+      required: true
+
+  - type: input
+    id: discord
+    attributes:
+      label: Discord handle (optional)
+      placeholder: "odjit"
+
+  - type: input
+    id: github
+    attributes:
+      label: GitHub handle (optional)
+      placeholder: "Odjit"
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: Pick the single best fit. Use Themes for secondary flavor.
+      options:
+        - Main Base
+        - Outpost
+        - Raid Base
+        - PvP Defense
+        - Vault
+        - Trader Hub
+        - Garden / Farm
+        - Crafting Hall
+        - Prison
+        - Boss Arena
+        - Showcase
+        - Roleplay Town
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Castle heart tier
+      options: [T1, T2, T3]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: footprint
+    attributes:
+      label: Footprint
+      options: [Small, Medium, Large, Max Territory]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: modes
+    attributes:
+      label: Game modes the build is intended for
+      options:
+        - label: PvE
+        - label: PvP
+        - label: Solo
+        - label: Duo
+        - label: Trio
+        - label: Clan (4+)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: dlc
+    attributes:
+      label: Uses pieces from these packs
+      description: Leave empty if the build uses only vanilla pieces.
+      options:
+        - label: "Founder's Pack: Eldest Bloodline"
+        - label: "Legacy of Castlevania"
+        - label: "Dracula's Relics"
+        - label: "Sinister Evolution"
+        - label: "Haunted Nights"
+        - label: "Eternal Dominance"
+
+  - type: checkboxes
+    id: themes
+    attributes:
+      label: Themes (pick any that apply)
+      options:
+        - label: Gothic
+        - label: Cathedral
+        - label: Ruin
+        - label: Winter
+        - label: Garden
+        - label: Symmetrical
+        - label: Minimalist
+        - label: Maze
+        - label: Throne Room
+        - label: Library
+        - label: Workshop
+        - label: Dungeon
+
+  - type: input
+    id: object_count
+    attributes:
+      label: Object count
+      description: The number shown by KindredSchematics when you export.
+      placeholder: "1432"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game_version
+    attributes:
+      label: Game version this was built on
+      options: ["1.0", "1.1"]
+    validations:
+      required: true
+
+  - type: input
+    id: mod_version
+    attributes:
+      label: Minimum KindredSchematics mod version
+      placeholder: ">=2.4.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: schematic
+    attributes:
+      label: Schematic file
+      description: Attach your .kindredschematic file by dragging it into this box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (1 to 6)
+      description: Drag images here. First image is used as the thumbnail.
+    validations:
+      required: true
+
+  - type: textarea
+    id: warnings
+    attributes:
+      label: Notes for placement (optional)
+      description: Required plot size, orientation, terrain notes, anything you would tell someone before they place this.

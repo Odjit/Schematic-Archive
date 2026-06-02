@@ -1,0 +1,29 @@
+# Build output
+dist/
+.astro/
+
+# Generated indexes
+src/data/gallery-index.json
+src/data/search-index.json
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/

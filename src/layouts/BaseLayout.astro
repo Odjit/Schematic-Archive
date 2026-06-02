@@ -1,0 +1,82 @@
+---
+import '../styles/global.css';
+import { SITE_NAME, SITE_TAGLINE } from '../site-config';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  activePage?: 'home' | 'browse' | 'submit' | 'about' | null;
+}
+
+const {
+  title,
+  description = SITE_TAGLINE,
+  ogImage = '/og-default.png',
+  activePage = null
+} = Astro.props;
+
+const pageTitle = title ? `${title} · ${SITE_NAME}` : SITE_NAME;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://schematic-archive.example').toString();
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site ?? 'https://schematic-archive.example').toString()} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <a href="/" class="wordmark" aria-label={SITE_NAME}>
+          The Schematic <span class="accent">Archive</span>
+        </a>
+        <nav>
+          <a href="/browse" class={activePage === 'browse' ? 'active' : ''}>Browse</a>
+          <a href="/submit" class={activePage === 'submit' ? 'active' : ''}>Submit</a>
+          <a href="/about"  class={activePage === 'about'  ? 'active' : ''}>About</a>
+        </nav>
+        <a href="/submit" class="submit-btn">Submit an entry</a>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div>
+          {SITE_NAME} is a community project for the
+          <a href="https://github.com/Odjit/KindredSchematics">KindredSchematics</a> V Rising mod.
+        </div>
+        <div>
+          <a href="https://github.com/Odjit/schematic-archive">GitHub</a> ·
+          <a href="/submit">Submit</a> ·
+          <a href="https://github.com/Odjit/schematic-archive/issues/new?template=report-entry.yml">Report an entry</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

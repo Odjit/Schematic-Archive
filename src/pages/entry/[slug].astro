@@ -1,0 +1,123 @@
+---
+import BuildLayout from '../../layouts/BuildLayout.astro';
+import ScreenshotCarousel from '../../components/ScreenshotCarousel.astro';
+import MetaPanel from '../../components/MetaPanel.astro';
+import DownloadButton from '../../components/DownloadButton.astro';
+import index from '../../data/gallery-index.json';
+import { type GalleryEntry } from '../../lib/filters';
+
+export async function getStaticPaths() {
+  const all = (await import('../../data/gallery-index.json')).default as unknown as GalleryEntry[];
+  return all.map(e => ({ params: { slug: e.id }, props: { entry: e } }));
+}
+
+interface Props { entry: GalleryEntry; }
+const { entry } = Astro.props;
+
+const all = index as unknown as GalleryEntry[];
+const _ = all; // kept for future related-entries logic
+
+const assetBase = `/entry-assets/${entry.id}`;
+const screenshots = entry.screenshots.map(s => `${assetBase}/${s}`);
+const downloadHref = `${assetBase}/${entry.schematicFile}`;
+---
+
+<BuildLayout entry={entry}>
+  <article class="container entry">
+    <div class="entry__crumb muted">
+      <a href="/browse">← Back to browse</a>
+    </div>
+
+    <div class="entry__grid">
+      <div class="entry__main">
+        <header class="entry__head">
+          <h1>{entry.title}</h1>
+          <p class="entry__summary">{entry.summary}</p>
+        </header>
+
+        <ScreenshotCarousel images={screenshots} alt={entry.title} />
+
+        <section class="entry__desc">
+          <h2>About this build</h2>
+          <p>{entry.summary}</p>
+          {/* When a builds/<slug>/README.md exists, render it here.
+              Wired up as a future improvement. For now we show the summary. */}
+        </section>
+
+        {entry.warnings && (
+          <div class="callout">
+            <strong>Notes from the author</strong>
+            <p>{entry.warnings}</p>
+          </div>
+        )}
+
+        <section class="entry__install">
+          <h2>Install</h2>
+          <ol>
+            <li>Download the schematic file using the button on the right.</li>
+            <li>Place the file in <code>BepInEx/config/KindredSchematics/Saves/</code>.</li>
+            <li>In-game, open the KindredSchematics menu and load the schematic.</li>
+            <li>Place it from a corner that matches the orientation shown in the screenshots.</li>
+          </ol>
+        </section>
+
+        <section class="entry__report">
+          <p class="muted">
+            Something off with this entry?
+            <a href={`https://github.com/Odjit/schematic-archive/issues/new?template=report-entry.yml&title=Report:+${encodeURIComponent(entry.title)}`}>
+              Report it
+            </a>.
+          </p>
+        </section>
+      </div>
+
+      <aside class="entry__rail">
+        <DownloadButton href={downloadHref} filename={entry.schematicFile} />
+        <MetaPanel entry={entry} />
+      </aside>
+    </div>
+  </article>
+</BuildLayout>
+
+<style>
+  .entry { padding-top: var(--space-5); padding-bottom: var(--space-7); }
+  .entry__crumb { margin-bottom: var(--space-4); font-size: 0.875rem; }
+
+  .entry__grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: var(--space-6);
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .entry__grid { grid-template-columns: 1fr; }
+  }
+
+  .entry__head h1 { margin-bottom: var(--space-2); }
+  .entry__summary { font-size: 1.1rem; color: var(--color-text-soft); margin-bottom: var(--space-5); }
+
+  .entry__desc, .entry__install, .entry__report { margin-top: var(--space-6); }
+  .entry__desc h2, .entry__install h2 { margin-bottom: var(--space-3); }
+  .entry__install ol { padding-left: 1.25em; color: var(--color-text-soft); }
+  .entry__install li { margin-bottom: var(--space-2); }
+
+  .entry__rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+  }
+  @media (max-width: 900px) {
+    .entry__rail { position: static; }
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-soft);
+  }
+</style>

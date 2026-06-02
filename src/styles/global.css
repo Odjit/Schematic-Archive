@@ -1,0 +1,160 @@
+@import './theme.css';
+
+/* --- Reset --- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { color-scheme: dark; }
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+img, picture, svg { max-width: 100%; display: block; }
+button { font: inherit; cursor: pointer; }
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { color: var(--color-text); }
+
+/* --- Typography --- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0 0 var(--space-4);
+  color: var(--color-text);
+}
+h1 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
+h2 { font-size: clamp(1.4rem, 2.4vw, 1.875rem); }
+h3 { font-size: 1.25rem; }
+p  { margin: 0 0 var(--space-4); color: var(--color-text-soft); }
+
+.muted { color: var(--color-text-muted); }
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* --- Layout primitives --- */
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+/* --- Site header --- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: var(--header-height);
+  background: rgba(12, 10, 9, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+.site-header .container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.site-header .wordmark {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+.site-header .wordmark .accent { color: var(--color-accent); }
+.site-header nav { margin-left: auto; display: flex; gap: var(--space-5); }
+.site-header nav a {
+  color: var(--color-text-soft);
+  font-size: 0.95rem;
+}
+.site-header nav a.active,
+.site-header nav a:hover { color: var(--color-accent); }
+.site-header .submit-btn {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.site-header .submit-btn:hover { background: var(--color-text); color: var(--color-bg); }
+
+/* --- Site footer --- */
+.site-footer {
+  margin-top: var(--space-8);
+  padding: var(--space-7) 0;
+  border-top: 1px solid var(--color-border-soft);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+.site-footer .container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  justify-content: space-between;
+}
+
+/* --- Generic cards / chips --- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-soft);
+  color: var(--color-text-soft);
+}
+.chip.accent {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+.btn:hover { border-color: var(--color-accent); color: var(--color-text); }
+.btn.primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+.btn.primary:hover { background: var(--color-text); border-color: var(--color-text); }
+
+/* --- Callouts --- */
+.callout {
+  border-left: 3px solid var(--color-warning);
+  background: rgba(199, 145, 51, 0.06);
+  padding: var(--space-4) var(--space-5);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--color-text-soft);
+}
+.callout.danger { border-left-color: var(--color-danger); background: rgba(176, 58, 58, 0.06); }
+
+/* --- Web font (lazy via Google Fonts) --- */
+/*
+ * Loaded in BaseLayout via <link rel="preconnect"> + stylesheet so we do not
+ * embed font files in the repo. If you want fully offline self-hosting,
+ * switch to @fontsource/cinzel and @fontsource/inter.
+ */

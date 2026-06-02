@@ -1,0 +1,27 @@
+{
+  "id": "humble-outpost",
+  "title": "Humble Outpost",
+  "summary": "A compact starter outpost. Single floor, all vanilla pieces, fits in any Tier 1 plot.",
+  "author": {
+    "name": "Vanguard",
+    "discord": "vanguard"
+  },
+  "category": "outpost",
+  "tier": "T1",
+  "footprint": "small",
+  "modes": ["pve", "solo", "duo"],
+  "dlc": [],
+  "themes": ["minimalist"],
+  "objectCount": 248,
+  "gameVersion": "1.1",
+  "modVersion": ">=2.4.0",
+  "schematicFile": "humble-outpost.kindredschematic",
+  "screenshots": [
+    "screenshots/01-overview.svg",
+    "screenshots/02-interior.svg"
+  ],
+  "submittedAt": "2026-05-18",
+  "featured": false,
+  "tags": ["starter", "compact"],
+  "warnings": ""
+}

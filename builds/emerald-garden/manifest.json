@@ -1,0 +1,27 @@
+{
+  "id": "emerald-garden",
+  "title": "The Emerald Garden",
+  "summary": "A symmetrical garden complex centered on a fountain plaza. Optimized for plant production.",
+  "author": {
+    "name": "Caelisse",
+    "github": "caelisse"
+  },
+  "category": "garden",
+  "tier": "T2",
+  "footprint": "medium",
+  "modes": ["pve", "solo", "duo"],
+  "dlc": ["draculas-relics"],
+  "themes": ["garden", "symmetrical", "ruin"],
+  "objectCount": 814,
+  "gameVersion": "1.1",
+  "modVersion": ">=2.4.0",
+  "schematicFile": "emerald-garden.kindredschematic",
+  "screenshots": [
+    "screenshots/01-plaza.svg",
+    "screenshots/02-greenhouse.svg"
+  ],
+  "submittedAt": "2026-05-25",
+  "featured": true,
+  "tags": ["plants", "fountain"],
+  "warnings": "Plants assume Dracula's Relics rare seeds. Vanilla-only players can substitute basic herbs without losing the layout."
+}

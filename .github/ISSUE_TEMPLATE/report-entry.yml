@@ -1,0 +1,33 @@
+name: Report an entry
+description: Report a broken, mislabeled, or inappropriate entry.
+title: "[Report] <entry title>"
+labels: ["report"]
+body:
+  - type: input
+    id: entry
+    attributes:
+      label: Entry URL or slug
+      placeholder: "/entry/frostbound-keep/"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong with it?
+      options:
+        - Schematic file does not import correctly
+        - Wrong category, tier, or DLC tag
+        - Screenshots do not match the build
+        - Duplicate of another entry
+        - Violates community guidelines
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+    validations:
+      required: true

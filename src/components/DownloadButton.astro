@@ -1,0 +1,58 @@
+---
+interface Props {
+  href: string;
+  filename: string;
+  sizeBytes?: number;
+}
+const { href, filename, sizeBytes } = Astro.props;
+const sizeLabel = sizeBytes
+  ? sizeBytes < 1024 * 1024
+    ? `${(sizeBytes / 1024).toFixed(0)} KB`
+    : `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`
+  : null;
+---
+
+<a class="download" href={href} download={filename}>
+  <span class="download__icon" aria-hidden="true">↓</span>
+  <span class="download__main">
+    <span class="download__label">Download schematic</span>
+    <span class="download__sub">
+      {filename}{sizeLabel && ` · ${sizeLabel}`}
+    </span>
+  </span>
+</a>
+
+<style>
+  .download {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-accent);
+    color: var(--color-bg);
+    border-radius: var(--radius);
+    font-weight: 600;
+    transition: background 120ms ease, transform 120ms ease;
+  }
+  .download:hover {
+    background: var(--color-text);
+    color: var(--color-bg);
+    transform: translateY(-1px);
+  }
+  .download__icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .download__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .download__label { font-size: 0.95rem; }
+  .download__sub {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 400;
+    opacity: 0.8;
+  }
+</style>

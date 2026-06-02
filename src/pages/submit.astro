@@ -1,0 +1,75 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Submit" activePage="submit" description="How to submit a build to The Schematic Archive.">
+  <section class="container submit-page">
+    <header>
+      <p class="eyebrow">Contribute</p>
+      <h1>Submit a build</h1>
+      <p class="muted">
+        Every entry in the Archive starts as a GitHub issue. Maintainers review the submission, then convert it into a PR that adds your folder to the <code>builds/</code> directory.
+      </p>
+    </header>
+
+    <ol class="steps">
+      <li>
+        <h3>1. Export your build</h3>
+        <p>Use the KindredSchematics in-game command to save your build to a <code>.kindredschematic</code> file. Find it under <code>BepInEx/config/KindredSchematics/Saves/</code>.</p>
+      </li>
+
+      <li>
+        <h3>2. Take 1 to 6 screenshots</h3>
+        <p>At least one wide exterior shot. Optional: interior, throne room, defensive layout, before-and-after with terrain.</p>
+        <p class="hint muted">JPG or PNG, ideally 1920px wide or smaller, under 400 KB each. Sharp images, no UI clutter if possible.</p>
+      </li>
+
+      <li>
+        <h3>3. Open a Submit Entry issue</h3>
+        <p>The issue form asks for everything we need: title, summary, author info, category, tier, modes, DLC packs used, and the schematic file plus screenshots as attachments.</p>
+        <p>
+          <a class="btn primary" href="https://github.com/Odjit/schematic-archive/issues/new?template=submit-entry.yml">
+            Open the Submit Entry form
+          </a>
+        </p>
+      </li>
+
+      <li>
+        <h3>4. Wait for review</h3>
+        <p>A maintainer will validate the manifest, check the screenshots, and open a PR that adds your entry. You will be tagged on the PR if anything needs a tweak.</p>
+      </li>
+
+      <li>
+        <h3>5. Once merged, the site updates automatically</h3>
+        <p>Deploy runs on every push to <code>main</code>. Your entry typically appears within a few minutes.</p>
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Have a build you cannot share through a GitHub form?</strong>
+      <p>Drop a comment on the <a href="https://github.com/Odjit/schematic-archive/discussions">Discussions board</a> with a Google Drive or Discord link and we will help get it into the Archive.</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .submit-page { padding-top: var(--space-6); padding-bottom: var(--space-7); max-width: 760px; }
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps li {
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps h3 { margin-bottom: var(--space-2); }
+  .hint { font-size: 0.875rem; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-soft);
+  }
+  .callout { margin-top: var(--space-7); }
+</style>

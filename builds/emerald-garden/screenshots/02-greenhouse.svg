@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <rect width="1600" height="900" fill="#14110f"/>
+  <!-- greenhouse arches -->
+  <g fill="none" stroke="#3a322c" stroke-width="3">
+    <path d="M 200 700 Q 200 200 800 200 Q 1400 200 1400 700"/>
+    <path d="M 320 700 Q 320 260 800 260 Q 1280 260 1280 700"/>
+    <path d="M 440 700 Q 440 320 800 320 Q 1160 320 1160 700"/>
+  </g>
+  <!-- planters -->
+  <g fill="#2a3a24">
+    <rect x="240" y="700" width="180" height="60"/>
+    <rect x="460" y="700" width="180" height="60"/>
+    <rect x="680" y="700" width="180" height="60"/>
+    <rect x="900" y="700" width="180" height="60"/>
+    <rect x="1120" y="700" width="180" height="60"/>
+  </g>
+  <text x="800" y="850" text-anchor="middle" font-family="Georgia, serif" font-size="24" fill="#5d564d">The Emerald Garden · greenhouse</text>
+</svg>

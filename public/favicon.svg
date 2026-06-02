@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="8" fill="#0c0a09"/>
+  <!-- Stylized 'A' with a vertical sword -->
+  <path d="M16 50 L32 14 L48 50 H42 L38 40 H26 L22 50 Z" fill="#c8a14a"/>
+  <path d="M28 34 H36 L32 22 Z" fill="#0c0a09"/>
+  <rect x="31" y="8" width="2" height="48" fill="#c8a14a" opacity="0.4"/>
+</svg>

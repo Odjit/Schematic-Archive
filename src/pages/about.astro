@@ -1,0 +1,55 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="About" activePage="about" description="What The Schematic Archive is and how it works.">
+  <section class="container about-page">
+    <header>
+      <p class="eyebrow">About</p>
+      <h1>What this is</h1>
+    </header>
+
+    <p>
+      The Schematic Archive is a community library of V Rising builds. Every entry includes screenshots, metadata, and a downloadable schematic file you can import using the
+      <a href="https://github.com/Odjit/KindredSchematics">KindredSchematics</a> mod.
+    </p>
+
+    <h2>How it works</h2>
+    <p>
+      Build folders live in a public GitHub repository. Each folder holds a <code>manifest.json</code>, a schematic file, screenshots, and an optional README. A small script reads all the manifests, validates them, and emits a single index that drives this site.
+    </p>
+    <p>
+      Submissions arrive as GitHub issues. Maintainers review them and merge them into the repo. The site rebuilds automatically.
+    </p>
+
+    <h2>About DLC entries</h2>
+    <p>
+      Pack badges on each card and the "Pieces from" list on each detail page are informational. They tell you which official V Rising packs an entry leans on, so you know what to expect visually. They are not enforced by the mod; KindredSchematics does not care whether you own a given pack.
+    </p>
+
+    <h2>Reporting an issue</h2>
+    <p>
+      If an entry is broken, mislabeled, or violates the community submission guidelines, open a
+      <a href="https://github.com/Odjit/schematic-archive/issues/new?template=report-entry.yml">Report Entry issue</a>. Maintainers will look at it.
+    </p>
+
+    <h2>Source and license</h2>
+    <p>
+      The site itself is open source. Individual entries belong to their authors and are shared on a "use, remix, learn from" basis unless an entry's detail page says otherwise. Repository:
+      <a href="https://github.com/Odjit/schematic-archive">github.com/Odjit/schematic-archive</a>.
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .about-page { padding-top: var(--space-6); padding-bottom: var(--space-7); max-width: 720px; }
+  .about-page h2 { margin-top: var(--space-7); }
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-soft);
+  }
+</style>

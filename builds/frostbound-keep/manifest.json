@@ -1,0 +1,30 @@
+{
+  "id": "frostbound-keep",
+  "title": "Frostbound Keep",
+  "summary": "A defensible winter castle with a central throne room and a fortified entry causeway.",
+  "author": {
+    "name": "Odjit",
+    "discord": "odjit",
+    "github": "Odjit"
+  },
+  "category": "main-base",
+  "tier": "T3",
+  "footprint": "large",
+  "modes": ["pvp", "clan"],
+  "dlc": ["castlevania", "sinister-evolution"],
+  "themes": ["gothic", "winter", "symmetrical", "throne-room"],
+  "objectCount": 1432,
+  "gameVersion": "1.1",
+  "modVersion": ">=2.4.0",
+  "schematicFile": "frostbound-keep.kindredschematic",
+  "screenshots": [
+    "screenshots/01-exterior.svg",
+    "screenshots/02-throne-room.svg",
+    "screenshots/03-courtyard.svg"
+  ],
+  "submittedAt": "2026-05-12",
+  "updatedAt": "2026-05-30",
+  "featured": true,
+  "tags": ["defensible", "throne-room"],
+  "warnings": "Requires a flat 60x60 plot. Place from the north corner so the causeway aligns with the spawn road."
+}

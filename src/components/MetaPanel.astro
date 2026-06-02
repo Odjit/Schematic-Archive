@@ -1,0 +1,107 @@
+---
+import type { GalleryEntry } from '../lib/filters';
+import {
+  CATEGORIES, TIERS, FOOTPRINTS, MODES, DLCS, THEMES, GAME_VERSIONS, labelOf
+} from '../site-config';
+
+interface Props { entry: GalleryEntry; }
+const { entry } = Astro.props;
+
+const submitted = new Date(entry.submittedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+const updated = entry.updatedAt
+  ? new Date(entry.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  : null;
+---
+
+<aside class="meta">
+  <dl>
+    <dt>Author</dt>
+    <dd>
+      {entry.author.name}
+      {entry.author.discord && <small class="muted"> · {entry.author.discord}</small>}
+    </dd>
+
+    <dt>Category</dt>
+    <dd>{labelOf(CATEGORIES, entry.category)}</dd>
+
+    <dt>Tier</dt>
+    <dd>{labelOf(TIERS, entry.tier)}</dd>
+
+    <dt>Footprint</dt>
+    <dd>{labelOf(FOOTPRINTS, entry.footprint)}</dd>
+
+    <dt>Modes</dt>
+    <dd>{entry.modes.map(s => labelOf(MODES, s)).join(', ')}</dd>
+
+    {entry.dlc.length > 0 && (
+      <>
+        <dt>Pieces from</dt>
+        <dd>
+          <ul class="meta__list">
+            {entry.dlc.map(slug => {
+              const d = DLCS.find(x => x.slug === slug);
+              return d ? <li title={d.fullName}>{d.label}</li> : null;
+            })}
+          </ul>
+        </dd>
+      </>
+    )}
+
+    {entry.themes.length > 0 && (
+      <>
+        <dt>Themes</dt>
+        <dd>{entry.themes.map(s => labelOf(THEMES, s)).join(', ')}</dd>
+      </>
+    )}
+
+    <dt>Object count</dt>
+    <dd>{entry.objectCount.toLocaleString()}</dd>
+
+    <dt>Game version</dt>
+    <dd>{labelOf(GAME_VERSIONS, entry.gameVersion)}</dd>
+
+    <dt>Mod compatibility</dt>
+    <dd><code>{entry.modVersion}</code></dd>
+
+    <dt>Submitted</dt>
+    <dd>{submitted}{updated && updated !== submitted && <> · updated {updated}</>}</dd>
+  </dl>
+</aside>
+
+<style>
+  .meta {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+  }
+  .meta dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .meta dt {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .meta dd {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text);
+    font-size: 0.95rem;
+  }
+  .meta__list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+  .meta__list li::before { content: '· '; color: var(--color-text-dim); }
+  .meta__list li:first-child::before { content: ''; }
+  .meta code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-soft);
+  }
+</style>

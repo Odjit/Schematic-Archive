@@ -1,0 +1,136 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BuildCard from '../components/BuildCard.astro';
+import { CATEGORIES } from '../site-config';
+import index from '../data/gallery-index.json';
+import { applySort, type GalleryEntry } from '../lib/filters';
+
+const all = index as unknown as GalleryEntry[];
+const featured = applySort(all.filter(e => e.featured), 'newest').slice(0, 3);
+const latest = applySort(all, 'newest').slice(0, 6);
+
+// Quick-link categories. Show those that actually have entries first.
+const categoryCounts = new Map<string, number>();
+for (const e of all) categoryCounts.set(e.category, (categoryCounts.get(e.category) ?? 0) + 1);
+const quickLinks = CATEGORIES
+  .map(c => ({ ...c, count: categoryCounts.get(c.slug) ?? 0 }))
+  .sort((a, b) => b.count - a.count)
+  .slice(0, 6);
+---
+
+<BaseLayout activePage="home">
+  <section class="hero">
+    <div class="container">
+      <div class="hero__inner">
+        <p class="eyebrow">The Schematic Archive</p>
+        <h1>Community castle blueprints for V Rising.</h1>
+        <p class="hero__sub">
+          Browse player-built castles, outposts, raid bases, and showcase builds.
+          Download a schematic file, then import it in-game with the
+          <a href="https://github.com/Odjit/KindredSchematics">KindredSchematics</a> mod.
+        </p>
+        <div class="hero__cta">
+          <a href="/browse" class="btn primary">Browse the archive</a>
+          <a href="/submit" class="btn">Submit an entry</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {featured.length > 0 && (
+    <section class="section container">
+      <header class="section__head">
+        <h2>Featured</h2>
+        <a href="/browse?tab=featured" class="muted">See all featured →</a>
+      </header>
+      <div class="grid grid--3">
+        {featured.map(e => <BuildCard entry={e} />)}
+      </div>
+    </section>
+  )}
+
+  <section class="section container">
+    <header class="section__head">
+      <h2>Latest entries</h2>
+      <a href="/browse?tab=recent" class="muted">See all recent →</a>
+    </header>
+    <div class="grid grid--3">
+      {latest.map(e => <BuildCard entry={e} />)}
+    </div>
+  </section>
+
+  {quickLinks.length > 0 && (
+    <section class="section container">
+      <header class="section__head"><h2>Browse by category</h2></header>
+      <div class="quicklinks">
+        {quickLinks.map(c => (
+          <a class="quicklink" href={`/browse?cat=${c.slug}`}>
+            <span class="quicklink__label">{c.label}</span>
+            <span class="quicklink__count">{c.count}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  .hero {
+    background:
+      radial-gradient(ellipse at top, rgba(200, 161, 74, 0.08), transparent 60%),
+      linear-gradient(180deg, var(--color-surface), var(--color-bg));
+    padding: var(--space-8) 0 var(--space-7);
+    border-bottom: 1px solid var(--color-border-soft);
+  }
+  .hero__inner { max-width: 760px; }
+  .hero h1 {
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    line-height: 1.05;
+    margin-bottom: var(--space-5);
+  }
+  .hero__sub {
+    font-size: 1.125rem;
+    color: var(--color-text-soft);
+    margin-bottom: var(--space-6);
+    max-width: 60ch;
+  }
+  .hero__cta { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+  .section { margin-top: var(--space-7); }
+  .section__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+  }
+  .grid { display: grid; gap: var(--space-5); }
+  .grid--3 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+  .quicklinks {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .quicklink {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-soft);
+    border-radius: var(--radius);
+    color: var(--color-text);
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    transition: border-color 120ms ease, transform 120ms ease;
+  }
+  .quicklink:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+  }
+  .quicklink__count {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+</style>

@@ -1,0 +1,62 @@
+/*
+ * Theme tokens for The Schematic Archive.
+ *
+ * Palette draws from V Rising's marketing: very dark warm blacks with a single
+ * accent color (a tarnished gold) and a secondary blood red for danger states.
+ * Serif headlines (Cinzel) over sans body (Inter), kept subtle so screenshots
+ * are the loudest thing on screen.
+ */
+
+:root {
+  /* Color: surfaces */
+  --color-bg:           #0c0a09;
+  --color-surface:      #14110f;
+  --color-surface-2:    #1c1917;
+  --color-surface-3:    #292524;
+  --color-border:       #3a322c;
+  --color-border-soft:  #2a2421;
+
+  /* Color: text */
+  --color-text:         #f5f1eb;
+  --color-text-soft:    #cfc6b8;
+  --color-text-muted:   #8a8278;
+  --color-text-dim:     #5d564d;
+
+  /* Color: accent */
+  --color-accent:       #c8a14a;   /* tarnished gold */
+  --color-accent-dim:   #8a7032;
+  --color-accent-soft:  rgba(200, 161, 74, 0.12);
+  --color-danger:       #b03a3a;
+  --color-warning:      #c79133;
+
+  /* Typography */
+  --font-display: 'Cinzel', 'Times New Roman', Georgia, serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  /* Spacing scale (4px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 10px;
+
+  /* Shadow / depth */
+  --shadow-card: 0 1px 0 0 rgba(255, 255, 255, 0.02) inset,
+                 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-card-hover: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+                       0 16px 36px -14px rgba(0, 0, 0, 0.75);
+
+  /* Layout */
+  --container-max: 1280px;
+  --rail-width: 260px;
+  --header-height: 64px;
+}
