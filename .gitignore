@@ -6,6 +6,9 @@ dist/
 src/data/gallery-index.json
 src/data/search-index.json
 
+# Generated entry assets (copied from builds/ by scripts/build-index.mjs)
+public/entry-assets/
+
 # Dependencies
 node_modules/
 
