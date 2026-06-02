@@ -55,10 +55,6 @@ const overlay = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="63
     <text x="360" y="415"
           font-size="20" letter-spacing="2"
           font-weight="400" fill="#cfc6b8">community castle blueprints for V Rising</text>
-
-    <!-- Deco diamond -->
-    <rect x="354" y="395" width="12" height="12"
-          transform="rotate(45 360 401)" fill="#c8a14a"/>
   </g>
 </svg>`;
 
