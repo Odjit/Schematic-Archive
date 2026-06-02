@@ -5,6 +5,7 @@ import MetaPanel from '../../components/MetaPanel.astro';
 import DownloadButton from '../../components/DownloadButton.astro';
 import index from '../../data/gallery-index.json';
 import { type GalleryEntry } from '../../lib/filters';
+import { withBase } from '../../lib/url';
 
 export async function getStaticPaths() {
   const all = (await import('../../data/gallery-index.json')).default as unknown as GalleryEntry[];
@@ -17,15 +18,16 @@ const { entry } = Astro.props;
 const all = index as unknown as GalleryEntry[];
 const _ = all; // kept for future related-entries logic
 
-const assetBase = `/entry-assets/${entry.id}`;
+const assetBase = withBase(`/entry-assets/${entry.id}`);
 const screenshots = entry.screenshots.map(s => `${assetBase}/${s}`);
 const downloadHref = `${assetBase}/${entry.schematicFile}`;
+const browseHref = withBase('/browse');
 ---
 
 <BuildLayout entry={entry}>
   <article class="container entry">
     <div class="entry__crumb muted">
-      <a href="/browse">← Back to browse</a>
+      <a href={browseHref}>← Back to browse</a>
     </div>
 
     <div class="entry__grid">

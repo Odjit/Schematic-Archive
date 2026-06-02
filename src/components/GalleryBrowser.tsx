@@ -24,6 +24,7 @@ import {
   type GalleryEntry,
   type Tab
 } from '../lib/filters';
+import { withBase } from '../lib/url';
 
 interface Props {
   entries: GalleryEntry[];
@@ -360,9 +361,9 @@ function CheckSection({
 function Card({ entry }: { entry: GalleryEntry }) {
   const thumb = entry.thumbnail || entry.screenshots[0];
   return (
-    <a class="gbc" href={`/entry/${entry.id}/`}>
+    <a class="gbc" href={withBase(`/entry/${entry.id}/`)}>
       <div class="gbc__thumb">
-        <img src={`/entry-assets/${entry.id}/${thumb}`} alt={entry.title} loading="lazy" />
+        <img src={withBase(`/entry-assets/${entry.id}/${thumb}`)} alt={entry.title} loading="lazy" />
         <span class="gbc__tier">{entry.tier}</span>
         <span class="gbc__cat">{labelOf(CATEGORIES, entry.category)}</span>
       </div>

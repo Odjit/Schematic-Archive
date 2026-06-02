@@ -8,12 +8,14 @@ interface Props {
 
 const { entry } = Astro.props;
 const thumb = entry.thumbnail || entry.screenshots[0];
+// BaseLayout's ogImage prop is passed through withBase() before becoming
+// a full URL, so we pass the raw absolute path here.
 ---
 
 <BaseLayout
   title={entry.title}
   description={entry.summary}
-  ogImage={`/builds/${entry.id}/${thumb}`}
+  ogImage={`/entry-assets/${entry.id}/${thumb}`}
 >
   <slot />
 </BaseLayout>

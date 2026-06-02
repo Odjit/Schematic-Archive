@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { SITE_NAME, SITE_TAGLINE } from '../site-config';
+import { withBase } from '../lib/url';
 
 interface Props {
   title?: string;
@@ -17,7 +18,9 @@ const {
 } = Astro.props;
 
 const pageTitle = title ? `${title} · ${SITE_NAME}` : SITE_NAME;
-const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://schematic-archive.example').toString();
+const siteOrigin = Astro.site ?? new URL('https://odjit.github.io');
+const canonical = new URL(Astro.url.pathname, siteOrigin).toString();
+const ogImageUrl = new URL(withBase(ogImage), siteOrigin).toString();
 ---
 
 <!doctype html>
@@ -34,7 +37,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://schematic-a
     <meta property="og:site_name" content={SITE_NAME} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site ?? 'https://schematic-archive.example').toString()} />
+    <meta property="og:image" content={ogImageUrl} />
     <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Fonts -->
@@ -43,21 +46,21 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://schematic-a
     <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
     <meta name="generator" content={Astro.generator} />
   </head>
   <body>
     <header class="site-header">
       <div class="container">
-        <a href="/" class="wordmark" aria-label={SITE_NAME}>
+        <a href={withBase('/')} class="wordmark" aria-label={SITE_NAME}>
           The Schematic <span class="accent">Archive</span>
         </a>
         <nav>
-          <a href="/browse" class={activePage === 'browse' ? 'active' : ''}>Browse</a>
-          <a href="/submit" class={activePage === 'submit' ? 'active' : ''}>Submit</a>
-          <a href="/about"  class={activePage === 'about'  ? 'active' : ''}>About</a>
+          <a href={withBase('/browse')} class={activePage === 'browse' ? 'active' : ''}>Browse</a>
+          <a href={withBase('/submit')} class={activePage === 'submit' ? 'active' : ''}>Submit</a>
+          <a href={withBase('/about')}  class={activePage === 'about'  ? 'active' : ''}>About</a>
         </nav>
-        <a href="/submit" class="submit-btn">Submit an entry</a>
+        <a href={withBase('/submit')} class="submit-btn">Submit an entry</a>
       </div>
     </header>
 
@@ -73,7 +76,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://schematic-a
         </div>
         <div>
           <a href="https://github.com/Odjit/schematic-archive">GitHub</a> ·
-          <a href="/submit">Submit</a> ·
+          <a href={withBase('/submit')}>Submit</a> ·
           <a href="https://github.com/Odjit/schematic-archive/issues/new?template=report-entry.yml">Report an entry</a>
         </div>
       </div>

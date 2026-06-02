@@ -3,12 +3,15 @@ import { defineConfig } from 'astro/config';
 import preact from '@astrojs/preact';
 import sitemap from '@astrojs/sitemap';
 
-// TODO: set this to the actual deployed URL when hosting is chosen.
-// Cloudflare Pages default looks like: https://schematic-archive.pages.dev
-const SITE = 'https://schematic-archive.example';
+// GitHub Pages project URL: https://<user>.github.io/<repo>/
+// When migrating to a custom domain later, drop `base` and update `site`.
+const SITE = 'https://odjit.github.io';
+const BASE = '/schematic-archive';
 
 export default defineConfig({
   site: SITE,
+  base: BASE,
+  trailingSlash: 'always',
   integrations: [preact(), sitemap()],
   vite: {
     server: {
