@@ -87,6 +87,14 @@ p  { margin: 0 0 var(--space-4); color: var(--color-text-soft); }
 }
 .site-header .submit-btn:hover { background: var(--color-text); color: var(--color-bg); }
 
+/* On narrow viewports the CTA button duplicates the nav's Submit link and
+   pushes the header wider than the viewport (mid-2025 finding: ~110px of
+   horizontal overflow at 375px). Hide the CTA there — the nav link still
+   reaches /submit. */
+@media (max-width: 560px) {
+  .site-header .submit-btn { display: none; }
+}
+
 /* --- Site footer --- */
 .site-footer {
   margin-top: var(--space-8);
