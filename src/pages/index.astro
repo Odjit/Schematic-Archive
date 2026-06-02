@@ -17,10 +17,13 @@ const quickLinks = CATEGORIES
   .map(c => ({ ...c, count: categoryCounts.get(c.slug) ?? 0 }))
   .sort((a, b) => b.count - a.count)
   .slice(0, 6);
+
+const heroBanner = withBase('/banner-hero.png');
 ---
 
 <BaseLayout activePage="home">
-  <section class="hero">
+  <section class="hero" style={`background-image: url(${heroBanner});`}>
+    <div class="hero__veil" aria-hidden="true"></div>
     <div class="container">
       <div class="hero__inner">
         <p class="eyebrow">The Schematic Archive</p>
@@ -41,7 +44,7 @@ const quickLinks = CATEGORIES
   {featured.length > 0 && (
     <section class="section container">
       <header class="section__head">
-        <h2>Featured</h2>
+        <h2 class="section-title">Featured</h2>
         <a href={withBase('/browse?tab=featured')} class="muted">See all featured →</a>
       </header>
       <div class="grid grid--3">
@@ -52,7 +55,7 @@ const quickLinks = CATEGORIES
 
   <section class="section container">
     <header class="section__head">
-      <h2>Latest entries</h2>
+      <h2 class="section-title">Latest entries</h2>
       <a href={withBase('/browse?tab=recent')} class="muted">See all recent →</a>
     </header>
     <div class="grid grid--3">
@@ -62,7 +65,7 @@ const quickLinks = CATEGORIES
 
   {quickLinks.length > 0 && (
     <section class="section container">
-      <header class="section__head"><h2>Browse by category</h2></header>
+      <header class="section__head"><h2 class="section-title">Browse by category</h2></header>
       <div class="quicklinks">
         {quickLinks.map(c => (
           <a class="quicklink" href={withBase(`/browse?cat=${c.slug}`)}>
@@ -76,26 +79,71 @@ const quickLinks = CATEGORIES
 </BaseLayout>
 
 <style>
+  /* Hero band carries the banner art. On wide screens the full ornamental
+     frame plus the castle sits to the right. On narrow screens the image
+     scales and the focus stays on the right side (castle), with the wordmark
+     reading over the darkened left half. */
   .hero {
-    background:
-      radial-gradient(ellipse at top, rgba(200, 161, 74, 0.08), transparent 60%),
-      linear-gradient(180deg, var(--color-surface), var(--color-bg));
-    padding: var(--space-8) 0 var(--space-7);
+    position: relative;
+    isolation: isolate;
+    min-height: clamp(360px, 52vw, 560px);
+    background-color: var(--color-bg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center right;
     border-bottom: 1px solid var(--color-border-soft);
+    overflow: hidden;
   }
-  .hero__inner { max-width: 760px; }
+  /* Left-to-right dark veil so the wordmark always has contrast regardless
+     of how the banner crops on a given viewport. */
+  .hero__veil {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+      linear-gradient(
+        to right,
+        var(--color-bg) 0%,
+        rgba(10, 12, 20, 0.85) 30%,
+        rgba(10, 12, 20, 0.35) 60%,
+        transparent 85%
+      );
+  }
+  .hero .container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    min-height: inherit;
+    padding-top: var(--space-7);
+    padding-bottom: var(--space-7);
+  }
+  .hero__inner { max-width: 560px; }
   .hero h1 {
-    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    font-size: clamp(2rem, 4.5vw, 3.25rem);
     line-height: 1.05;
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--space-4);
   }
   .hero__sub {
-    font-size: 1.125rem;
+    font-size: 1.05rem;
     color: var(--color-text-soft);
     margin-bottom: var(--space-6);
-    max-width: 60ch;
+    max-width: 52ch;
   }
   .hero__cta { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+  @media (max-width: 720px) {
+    /* On mobile the gold frame edges crop off the screen; the castle stays
+       partially visible as a backdrop while the wordmark dominates. */
+    .hero { background-position: 75% center; }
+    .hero__veil {
+      background: linear-gradient(
+        to bottom,
+        rgba(10, 12, 20, 0.55) 0%,
+        rgba(10, 12, 20, 0.85) 100%
+      );
+    }
+  }
 
   .section { margin-top: var(--space-7); }
   .section__head {

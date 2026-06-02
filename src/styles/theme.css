@@ -8,24 +8,25 @@
  */
 
 :root {
-  /* Color: surfaces */
-  --color-bg:           #0c0a09;
-  --color-surface:      #14110f;
-  --color-surface-2:    #1c1917;
-  --color-surface-3:    #292524;
-  --color-border:       #3a322c;
-  --color-border-soft:  #2a2421;
+  /* Color: surfaces (cool navy ground, tuned to harmonize with the hero banner) */
+  --color-bg:           #0a0c14;
+  --color-surface:      #11141c;
+  --color-surface-2:    #181b25;
+  --color-surface-3:    #21252f;
+  --color-border:       #2e3340;
+  --color-border-soft:  #1f2330;
 
-  /* Color: text */
+  /* Color: text (kept warm so it reads as parchment against the cool ground) */
   --color-text:         #f5f1eb;
   --color-text-soft:    #cfc6b8;
-  --color-text-muted:   #8a8278;
-  --color-text-dim:     #5d564d;
+  --color-text-muted:   #8a8a8e;
+  --color-text-dim:     #565862;
 
-  /* Color: accent */
-  --color-accent:       #c8a14a;   /* tarnished gold */
+  /* Color: accent (the gold from the hero banner ornaments) */
+  --color-accent:       #c8a14a;
   --color-accent-dim:   #8a7032;
-  --color-accent-soft:  rgba(200, 161, 74, 0.12);
+  --color-accent-soft:  rgba(200, 161, 74, 0.10);
+  --color-accent-line:  rgba(200, 161, 74, 0.35);
   --color-danger:       #b03a3a;
   --color-warning:      #c79133;
 

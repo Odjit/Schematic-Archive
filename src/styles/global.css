@@ -142,6 +142,55 @@ p  { margin: 0 0 var(--space-4); color: var(--color-text-soft); }
 }
 .btn.primary:hover { background: var(--color-text); border-color: var(--color-text); }
 
+/* --- Art deco accents ---
+   Small, reusable ornaments. Used sparingly. Hero banner does the heavy lifting;
+   the rest of the page stays quiet so the gold reads as deliberate. */
+
+/* A thin gold rule with a diamond center, used between sections or under titles. */
+.deco-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-accent-line);
+  margin: var(--space-5) 0;
+}
+.deco-rule::before,
+.deco-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-accent-line) 30%,
+    var(--color-accent-line) 70%,
+    transparent
+  );
+}
+.deco-rule__diamond {
+  width: 8px;
+  height: 8px;
+  background: var(--color-accent);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+
+/* Section heading with a short gold underline. Quiet but unmistakably deco. */
+.section-title {
+  position: relative;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.section-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 48px;
+  height: 1px;
+  background: var(--color-accent);
+}
+
 /* --- Callouts --- */
 .callout {
   border-left: 3px solid var(--color-warning);
