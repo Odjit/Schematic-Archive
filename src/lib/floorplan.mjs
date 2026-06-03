@@ -56,6 +56,18 @@ export const LAYER_ORDER = [
 
 export const UNKNOWN_CATEGORY = 'other';
 
+// Categories whose pieces are foundation-style tiles: their PhysicsCollider
+// AABB is smaller than the placement grid cell they visually fill (a stone
+// floor foundation has a 6 m collider but tiles on a 10 m grid). Rendering
+// the collider leaves 4 m gaps on every side, so the floor reads as scattered
+// squares instead of a continuous surface. For these categories we render at
+// the detected grid pitch instead (see detectGridPitch + buildPanel).
+//
+// Deliberately NOT including 'roof': filling roof blockers to the cell would
+// lay a solid sheet over the lower floors in the top-down merged view,
+// obscuring the very plan we're trying to show.
+export const FULL_CELL_CATEGORIES = new Set(['floor']);
+
 // Footprint used when a prefab has no AABB in the table (chains, particle-only
 // markers, etc.). Small enough to read as "I don't know what this is" rather
 // than swamping the structural layers.
@@ -225,6 +237,63 @@ export function detectFloors(schematic) {
 }
 
 /**
+ * Detect the placement grid pitch (in tiles) for foundation-style tiles by
+ * finding the most common non-zero spacing between adjacent floor tiles along
+ * each axis. V Rising stone foundations tile on a 10 m grid while their
+ * collider AABB is only 6 m, so this recovers the cell size needed to render
+ * floors as a continuous surface.
+ *
+ * Returns null when there aren't enough floor tiles to establish a grid (e.g.
+ * a tiny build or one with no floors) — callers fall back to the collider
+ * footprint in that case.
+ *
+ * @param {Array} entities
+ * @param {ReturnType<typeof buildCategoryLookup>} lookup
+ * @returns {number | null}
+ */
+export function detectGridPitch(entities, lookup) {
+  // Bucket floor-tile X positions by Z row and Z positions by X column, so we
+  // measure spacing between same-row / same-column neighbours.
+  const byZ = new Map();
+  const byX = new Map();
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    if (!FULL_CELL_CATEGORIES.has(lookup.lookup(e.prefab).id)) continue;
+    const [x, z] = e.tilePos;
+    if (!byZ.has(z)) byZ.set(z, []);
+    if (!byX.has(x)) byX.set(x, []);
+    byZ.get(z).push(x);
+    byX.get(x).push(z);
+  }
+
+  const tally = new Map();
+  const addDiffs = (groups) => {
+    for (const arr of groups.values()) {
+      arr.sort((a, b) => a - b);
+      for (let i = 1; i < arr.length; i++) {
+        const d = Math.round((arr[i] - arr[i - 1]) * 1000) / 1000;
+        if (d > 0) tally.set(d, (tally.get(d) ?? 0) + 1);
+      }
+    }
+  };
+  addDiffs(byZ);
+  addDiffs(byX);
+  if (tally.size === 0) return null;
+
+  // Modal spacing wins. Ties break toward the smaller pitch so we never
+  // over-inflate past the true cell.
+  let best = null;
+  let bestN = -1;
+  for (const [d, n] of tally) {
+    if (n > bestN || (n === bestN && best !== null && d < best)) {
+      best = d;
+      bestN = n;
+    }
+  }
+  return best;
+}
+
+/**
  * Walk the entities once and produce the per-layer rect buckets for one
  * panel.
  *
@@ -313,7 +382,15 @@ export function buildPanel(entities, lookup, geom, yFilter) {
 
     let w = cls.w;
     let d = cls.d;
-    if (swapsWidthDepth(e.rot)) { [w, d] = [d, w]; }
+    if (geom.pitch && FULL_CELL_CATEGORIES.has(cls.id)) {
+      // Foundation-style tile: render at the placement grid cell so floors
+      // form a continuous surface. Square cell, so rotation is a no-op. Never
+      // shrink below the collider footprint if the detected pitch is small.
+      w = Math.max(geom.pitch, cls.w);
+      d = Math.max(geom.pitch, cls.d);
+    } else if (swapsWidthDepth(e.rot)) {
+      [w, d] = [d, w];
+    }
 
     const sx = (e.tilePos[0] - w / 2 - geom.minTX) * geom.cell;
     const sy = (geom.maxTZ - e.tilePos[1] - d / 2) * geom.cell;

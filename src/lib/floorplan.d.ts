@@ -68,6 +68,7 @@ export interface Schematic {
 
 export const LAYER_ORDER: readonly string[];
 export const UNKNOWN_CATEGORY: 'other';
+export const FULL_CELL_CATEGORIES: ReadonlySet<string>;
 export const FALLBACK_W: number;
 export const FALLBACK_D: number;
 export const FALLBACK_Y0: number;
@@ -103,6 +104,13 @@ export interface PanelGeom {
   minTX: number;
   maxTZ: number;
   cell: number;
+  /**
+   * Placement grid pitch in tiles, from detectGridPitch. When set, buildPanel
+   * renders FULL_CELL_CATEGORIES tiles at this size so floors form a
+   * continuous surface. Omit/undefined to render every tile at its collider
+   * footprint.
+   */
+  pitch?: number | null;
 }
 
 /**
@@ -154,6 +162,16 @@ export interface FloorBand {
 
 export function detectFloors(schematic: Schematic): FloorBand[];
 export function swapsWidthDepth(rotEulerDeg: number[]): boolean;
+
+/**
+ * Most common non-zero spacing between adjacent floor (FULL_CELL_CATEGORIES)
+ * tiles, in tiles — the placement grid pitch. null when too few floor tiles
+ * to establish a grid; callers then fall back to the collider footprint.
+ */
+export function detectGridPitch(
+  entities: SchematicEntity[] | undefined,
+  lookup: CategoryLookup,
+): number | null;
 
 // ---------------------------------------------------------------------------
 // Per-panel build.

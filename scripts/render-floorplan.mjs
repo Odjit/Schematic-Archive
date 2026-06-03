@@ -57,6 +57,7 @@ import {
   buildCategoryLookup,
   computePanelLayout,
   detectFloors,
+  detectGridPitch,
   buildPanel,
 } from '../src/lib/floorplan.mjs';
 
@@ -79,7 +80,10 @@ export function renderFloorplan(schematic, prefabTable, opts = {}) {
   // via src/lib/floorplan.mjs).
   const layout = computePanelLayout(schematic, opts);
   const { minTX, maxTZ, cell, tilesW, tilesD, drawW, drawH } = layout;
-  const geom = { minTX, maxTZ, cell };
+  // Grid pitch lets buildPanel render foundation tiles as a continuous floor
+  // surface instead of scattered colliders.
+  const pitch = detectGridPitch(schematic.entities, lookup);
+  const geom = { minTX, maxTZ, cell, pitch };
 
   // -- 2. Build panels: merged on top, slices below (when >=2 floors).
   const bands = wantSlices ? detectFloors(schematic) : [];
