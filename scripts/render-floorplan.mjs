@@ -55,6 +55,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   LAYER_ORDER,
   buildCategoryLookup,
+  computePanelLayout,
   detectFloors,
   buildPanel,
 } from '../src/lib/floorplan.mjs';
@@ -70,25 +71,14 @@ import {
  * @returns {{ svg: string, stats: object }}
  */
 export function renderFloorplan(schematic, prefabTable, opts = {}) {
-  const targetWidth   = opts.targetWidth ?? 800;
-  const minCell       = opts.minCell     ?? 2;
-  const maxCell       = opts.maxCell     ?? 8;
-  const wantSlices    = opts.slices      ?? true;
+  const wantSlices = opts.slices ?? true;
 
   const lookup = buildCategoryLookup(prefabTable);
 
-  // -- 1. Tile-coord extent + cell sizing (shared across all panels).
-  const bbMin = schematic.boundingBox?.min ?? [0, 0, 0];
-  const bbMax = schematic.boundingBox?.max ?? [0, 0, 0];
-  const minTX = Math.floor(bbMin[0]);
-  const minTZ = Math.floor(bbMin[2]);
-  const maxTX = Math.ceil(bbMax[0]);
-  const maxTZ = Math.ceil(bbMax[2]);
-  const tilesW = Math.max(1, maxTX - minTX);
-  const tilesD = Math.max(1, maxTZ - minTZ);
-  const cell = Math.max(minCell, Math.min(maxCell, Math.floor(targetWidth / tilesW)));
-  const drawW = tilesW * cell;
-  const drawH = tilesD * cell;
+  // -- 1. Tile-coord extent + cell sizing (shared with the Canvas viewer
+  // via src/lib/floorplan.mjs).
+  const layout = computePanelLayout(schematic, opts);
+  const { minTX, maxTZ, cell, tilesW, tilesD, drawW, drawH } = layout;
   const geom = { minTX, maxTZ, cell };
 
   // -- 2. Build panels: merged on top, slices below (when >=2 floors).

@@ -77,6 +77,59 @@ export const FLOOR_HEIGHT_M = 5;
 export const SLICE_EDGE_EPS = 0.05;
 
 // ---------------------------------------------------------------------------
+// Default panel sizing — chosen to fit the typical desktop floor plan into
+// ~800 px without losing readability on dense walls. The cell range carries
+// through to drawW/drawH so the canvas/SVG output size scales with the build.
+const DEFAULT_TARGET_WIDTH = 800;
+const DEFAULT_MIN_CELL     = 2;
+const DEFAULT_MAX_CELL     = 8;
+
+/**
+ * Compute the shared panel layout for one schematic — tile-coord extent, the
+ * derived pixel cell, and the final draw dimensions. Both the SVG renderer
+ * and the Canvas viewer call this so cell sizing never drifts between them.
+ *
+ * The returned `{minTX, maxTZ, cell}` is the `geom` that buildPanel consumes;
+ * `{tilesW, tilesD, drawW, drawH}` are the panel size in tile and pixel
+ * units, used by the caller to size its own surface.
+ *
+ * @param {object} schematic parsed .kindredschematic JSON
+ * @param {object} [opts]
+ * @param {number} [opts.targetWidth=800] target panel width in px; cell is
+ *   floor(targetWidth / tilesW), clamped to [minCell, maxCell]
+ * @param {number} [opts.minCell=2] minimum cell size in px (keeps thin walls
+ *   visible on very wide builds)
+ * @param {number} [opts.maxCell=8] maximum cell size in px (caps the pixel
+ *   density on tiny builds)
+ * @returns {{
+ *   minTX: number, maxTZ: number, cell: number,
+ *   tilesW: number, tilesD: number,
+ *   drawW: number, drawH: number,
+ * }}
+ */
+export function computePanelLayout(schematic, opts = {}) {
+  const targetWidth = opts.targetWidth ?? DEFAULT_TARGET_WIDTH;
+  const minCell     = opts.minCell     ?? DEFAULT_MIN_CELL;
+  const maxCell     = opts.maxCell     ?? DEFAULT_MAX_CELL;
+
+  const bbMin = schematic.boundingBox?.min ?? [0, 0, 0];
+  const bbMax = schematic.boundingBox?.max ?? [0, 0, 0];
+  const minTX = Math.floor(bbMin[0]);
+  const maxTX = Math.ceil(bbMax[0]);
+  const maxTZ = Math.ceil(bbMax[2]);
+  // minTZ is computed only to derive tilesD — Z origin in the plan is set by
+  // maxTZ via the (maxTZ - tilePos[1]) flip inside buildPanel (north-up).
+  const minTZ = Math.floor(bbMin[2]);
+  const tilesW = Math.max(1, maxTX - minTX);
+  const tilesD = Math.max(1, maxTZ - minTZ);
+  const cell = Math.max(minCell, Math.min(maxCell, Math.floor(targetWidth / tilesW)));
+  const drawW = tilesW * cell;
+  const drawH = tilesD * cell;
+
+  return { minTX, maxTZ, cell, tilesW, tilesD, drawW, drawH };
+}
+
+// ---------------------------------------------------------------------------
 /**
  * Build a name → metadata lookup over the slim prefab table
  * (src/data/render-prefabs.json schema v4).

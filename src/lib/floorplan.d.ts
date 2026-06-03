@@ -106,6 +106,32 @@ export interface PanelGeom {
 }
 
 /**
+ * Full panel layout — geom + the panel's pixel and tile dimensions.
+ * Superset of PanelGeom: the SVG/Canvas surface uses tilesW/tilesD/drawW/
+ * drawH to size itself; buildPanel only needs the geom subset.
+ */
+export interface PanelLayout extends PanelGeom {
+  tilesW: number;
+  tilesD: number;
+  drawW: number;
+  drawH: number;
+}
+
+export interface PanelLayoutOptions {
+  /** Target panel width in px; cell = floor(targetWidth / tilesW), clamped. Default 800. */
+  targetWidth?: number;
+  /** Minimum cell size in px. Default 2. */
+  minCell?: number;
+  /** Maximum cell size in px. Default 8. */
+  maxCell?: number;
+}
+
+export function computePanelLayout(
+  schematic: Schematic,
+  opts?: PanelLayoutOptions,
+): PanelLayout;
+
+/**
  * Y-band filter for buildPanel.
  *   - 'center' (default): closed-open band on center Y. Each entity lands
  *     in exactly one band. Used by the static SVG per-floor panels.
