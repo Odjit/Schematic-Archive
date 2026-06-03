@@ -27,7 +27,9 @@ const ROOT = resolve(__dirname, '..');
 const BUILDS_DIR = join(ROOT, 'builds');
 const OUT_DIR = join(ROOT, 'src', 'data');
 const ASSET_OUT_ROOT = join(ROOT, 'public', 'entry-assets');
-const PREFAB_TABLE_PATH = join(OUT_DIR, 'render-prefabs.json');
+// The prefab table lives under public/ so it's served as a static asset for
+// the browser-side Canvas viewer; this script reads the same single file.
+const PREFAB_TABLE_PATH = join(ROOT, 'public', 'data', 'render-prefabs.json');
 
 // Lazily loaded once at startup; null if the table isn't built yet, in which
 // case floor-plan generation is skipped (the build still succeeds).

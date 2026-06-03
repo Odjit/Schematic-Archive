@@ -225,7 +225,7 @@ async function cli() {
   }
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const root = resolve(__dirname, '..');
-  const tablePath = resolve(root, 'src/data/render-prefabs.json');
+  const tablePath = resolve(root, 'public/data/render-prefabs.json');
   const schemaPath = resolve(process.cwd(), schemaArg);
   const outPath = outArg
     ? resolve(process.cwd(), outArg)

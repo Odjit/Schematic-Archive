@@ -3,8 +3,12 @@
  * build-render-prefabs.mjs
  *
  * Reads data/render-prefabs.raw.json (dumped from the KindredExtract mod via
- * `.dump renderprefabs`) and produces src/data/render-prefabs.json — a slim,
+ * `.dump renderprefabs`) and produces public/data/render-prefabs.json — a slim,
  * classified lookup used by the floor-plan renderer.
+ *
+ * Output lives under public/ (not src/) so Astro serves it as a static asset
+ * for the browser-side Canvas viewer to fetch, while the build-time SVG
+ * renderer reads the same single file. One source of truth, no drift.
  *
  * Why split this out:
  *   - The mod dump is *raw facts* (name + component flags + tile bounds +
@@ -53,7 +57,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT      = resolve(__dirname, '..');
 const RAW_PATH  = resolve(ROOT, 'data',     'render-prefabs.raw.json');
-const OUT_PATH  = resolve(ROOT, 'src/data', 'render-prefabs.json');
+const OUT_PATH  = resolve(ROOT, 'public/data', 'render-prefabs.json');
 
 const log  = (...a) => console.log('[build-render-prefabs]', ...a);
 const warn = (...a) => console.warn('[build-render-prefabs] WARN:', ...a);
