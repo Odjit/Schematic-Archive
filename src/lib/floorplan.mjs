@@ -93,6 +93,13 @@ export const FALLBACK_D  = 1;
 export const FALLBACK_Y0 = 0;
 export const FALLBACK_Y1 = 1;
 
+// Doors carry a chunky ~4×4 clearance collider, which renders as a fat square
+// straddling the wall. We instead draw them as a slim bar — full length along
+// the wall, this thin across — so a doorway reads as an opening in the wall
+// line rather than a block. Slightly thicker than a 1-tile wall so the door
+// colour stays legible on top of it.
+export const DOOR_THICKNESS = 1.5;
+
 // V Rising's castle build grid: each floor is 5 m tall. Slice bands are
 // (floor_y, floor_y + FLOOR_HEIGHT_M). Bands below are derived from the
 // schematic's boundingBox.min.y so a build that starts above the standard
@@ -645,6 +652,11 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       // shrink below the collider footprint if the detected pitch is small.
       w = Math.max(geom.pitch, cls.w);
       d = Math.max(geom.pitch, cls.d);
+    } else if (cls.id === 'door') {
+      // Slim the bulky clearance collider down to a wall-thin bar, then
+      // orient it along the wall via the rotation rule (as walls do).
+      d = Math.min(d, DOOR_THICKNESS);
+      if (swapsWidthDepth(e.rot)) { [w, d] = [d, w]; }
     } else if (swapsWidthDepth(e.rot)) {
       [w, d] = [d, w];
     }

@@ -36,6 +36,7 @@ const TABLE = {
     StairMid:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Part',  dir: 'North' },
     StairEnd:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'End',   dir: 'North' },
     Pavement:   { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
+    Door:       { category: 'door', w: 4, d: 4, y0: -1, y1: 5 },
   },
 };
 const lookup = buildCategoryLookup(TABLE);
@@ -154,6 +155,14 @@ test('buildPanel: pavement renders as bridged ribbons (connected, thin)', () => 
   const thin = rects.every(r => r.d === 5);       // never as tall as a full cell
   assert.ok(thin, 'ribbon thickness stays at the collider width');
   assert.ok(rects.some(r => r.w === 10), 'a bridge spans the gap to the neighbour');
+});
+
+test('buildPanel: doors render as a slim bar, not the 4x4 collider', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const rect = [...buildPanel([ent('Door', 5, 5)], lookup, geom, null)
+    .layers.get('door').values()][0];
+  assert.equal(rect.w, 4);    // length along the wall kept
+  assert.equal(rect.d, 1.5);  // thinned across (was 4)
 });
 
 test('detectStairRuns: straight flight is a 2-point centerline', () => {
