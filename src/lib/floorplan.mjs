@@ -608,19 +608,32 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
 
     if (geom.pitch && RIBBON_CATEGORIES.has(cls.id)) {
       // Connected thin ribbon: keep the piece's thin collider footprint, but
-      // bridge the gap to an adjacent same-category piece so a path/rug reads
+      // bridge the gap to the NEAREST same-category piece so a path/rug reads
       // as a continuous strip thinner than a full floor tile. Only bridge in
-      // +X/+Z (the neighbour bridges back from its own −side via dedupe), and
-      // allow ±1 tile slack since paving isn't perfectly on the pitch.
+      // +X/+Z (the neighbour bridges back from its own −side via dedupe).
+      //
+      // Bridging to the nearest neighbour (from one tile out to ~one grid
+      // pitch) — rather than only exactly one pitch away — lets a path connect
+      // through a doorway *or a bare wall opening* (often just a gap, no door
+      // entity), where pavement resumes ~half a cell past the wall. A bridge
+      // that happens to cross a solid wall is harmless: pavement paints under
+      // walls, so it's hidden except at the opening.
       const occ = ribbonOcc.get(cls.id);
       const p = geom.pitch;
+      const maxBridge = p + 1;
       const [tx, tz] = e.tilePos;
       const rw = cls.w;
       const rd = cls.d;
+      // Scan along the axis for the nearest neighbour, allowing ±1 tile of
+      // perpendicular slack — paths often step sideways by a tile crossing a
+      // doorway, and that offset still falls within the ribbon's thickness.
       const span = (axis) => {
-        for (const dd of [p, p - 1, p + 1]) {
-          const k = axis === 'x' ? `${tx + dd},${tz}` : `${tx},${tz + dd}`;
-          if (occ && occ.has(k)) return dd;
+        if (!occ) return 0;
+        for (let dd = 1; dd <= maxBridge; dd++) {
+          for (const pp of [0, -1, 1]) {
+            const k = axis === 'x' ? `${tx + dd},${tz + pp}` : `${tx + pp},${tz + dd}`;
+            if (occ.has(k)) return dd;
+          }
         }
         return 0;
       };
