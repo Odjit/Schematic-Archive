@@ -586,17 +586,47 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       : (eMax > yFilter.y0 && eMin < yFilter.y1);
   };
 
-  // Pre-pass: which ribbon cells are visible, per category. Used to bridge a
-  // piece to its same-category neighbours so paths/rugs read as connected.
+  // Pre-pass for ribbon (pavement/carpet) rendering. The raw tilePos data is
+  // noisy — pieces on a straight path jitter ±1 tile in spacing and step ±1
+  // sideways — which makes naive bridging wobble. So we SNAP each ribbon piece
+  // to a clean grid (the category's dominant phase) before rendering: paths
+  // become uniform straight lines, neighbours sit exactly one pitch apart, and
+  // junctions line up. ribbonOcc holds the snapped occupancy; ribbonPhase the
+  // per-category [phaseX, phaseZ]; snapTile does the snapping (shared with the
+  // render loop).
+  const ribbonPitch = geom.pitch || 0;
+  const ribbonPhase = new Map();
   const ribbonOcc = new Map();
-  if (geom.pitch) {
+  const snapTile = (v, phase) =>
+    Math.round((v - phase) / ribbonPitch) * ribbonPitch + phase;
+  if (ribbonPitch) {
+    const rawByCat = new Map();
     for (const e of entities ?? []) {
       if (!e.tilePos) continue;
       const cls = lookup.lookup(e.prefab);
       if (!RIBBON_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
-      let set = ribbonOcc.get(cls.id);
-      if (!set) { set = new Set(); ribbonOcc.set(cls.id, set); }
-      set.add(`${e.tilePos[0]},${e.tilePos[1]}`);
+      let list = rawByCat.get(cls.id);
+      if (!list) { list = []; rawByCat.set(cls.id, list); }
+      list.push(e.tilePos);
+    }
+    const modePhase = (vals) => {
+      const counts = new Map();
+      let best = 0, bestN = -1;
+      for (const v of vals) {
+        const r = ((v % ribbonPitch) + ribbonPitch) % ribbonPitch;
+        const n = (counts.get(r) ?? 0) + 1;
+        counts.set(r, n);
+        if (n > bestN) { bestN = n; best = r; }
+      }
+      return best;
+    };
+    for (const [cat, list] of rawByCat) {
+      const phx = modePhase(list.map(t => t[0]));
+      const phz = modePhase(list.map(t => t[1]));
+      ribbonPhase.set(cat, [phx, phz]);
+      const set = new Set();
+      for (const t of list) set.add(`${snapTile(t[0], phx)},${snapTile(t[1], phz)}`);
+      ribbonOcc.set(cat, set);
     }
   }
 
@@ -642,60 +672,48 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
     const layerId = layers.has(cls.id) ? cls.id : UNKNOWN_CATEGORY;
     const bucket = layers.get(layerId);
 
-    if (geom.pitch && RIBBON_CATEGORIES.has(cls.id)) {
-      // Shape-aware connected ribbon. Keep the thin collider footprint, then
-      // bridge each of the piece's intrinsic arms — read from its junction
-      // shape (straight/corner/tee/cross) + rotation, NOT from neighbour
-      // positions — to the nearest same-category neighbour in that direction.
+    if (ribbonPitch && RIBBON_CATEGORIES.has(cls.id)) {
+      // Shape-aware connected ribbon on the snapped grid. The piece is drawn at
+      // its snapped position (removing the raw ±1 jitter/jog), and each of its
+      // intrinsic arms — read from junction shape (straight/corner/tee/cross) +
+      // rotation, NOT neighbour positions — bridges to the nearest occupied
+      // snapped neighbour 1–2 cells away in that direction.
       //
-      // Reading arms from the piece TYPE is what stops a T-junction rendering
-      // as a cross: a parallel path one tile away can't add a phantom 4th arm,
-      // because that direction isn't one of the piece's arms. Bridging to the
-      // nearest neighbour (1..pitch+1 tiles, ±1 tile of perpendicular slack)
-      // still connects through a doorway or bare wall opening where the path
-      // resumes ~a cell over and jogged a tile. Pavement paints under walls, so
-      // a bridge crossing a solid wall stays hidden except at the opening.
+      // Reading arms from the piece TYPE stops a T rendering as a cross (a
+      // parallel path can't add a phantom 4th arm). Snapping makes every join a
+      // clean straight line. Allowing a 2-cell reach connects across a doorway
+      // or bare wall opening; the bridge paints under walls, so it's hidden
+      // except at the opening.
       const occ = ribbonOcc.get(cls.id);
-      const maxBridge = geom.pitch + 1;
-      const [tx, tz] = e.tilePos;
+      const [phx, phz] = ribbonPhase.get(cls.id) ?? [0, 0];
+      const p = ribbonPitch;
+      const tx = snapTile(e.tilePos[0], phx);
+      const tz = snapTile(e.tilePos[1], phz);
       const rw = cls.w;
       const rd = cls.d;
-      // Nearest neighbour along an arm: distance dd + perpendicular offset pp
-      // (paths jog a tile across openings). null if none in range.
-      const nearestArm = (dx, dz) => {
-        if (!occ) return null;
-        for (let dd = 1; dd <= maxBridge; dd++) {
-          for (const pp of [0, -1, 1]) {
-            const k = dx !== 0 ? `${tx + dx * dd},${tz + pp}` : `${tx + pp},${tz + dz * dd}`;
-            if (occ.has(k)) return { dd, pp };
-          }
-        }
-        return null;
-      };
       // Base tile.
       pushRect(bucket, layerId, e.prefab,
         (tx - rw / 2 - geom.minTX) * geom.cell,
         (geom.maxTZ - tz - rd / 2) * geom.cell, rw, rd);
-      // Arm bridges, only in the directions this piece's shape allows. When the
-      // neighbour is jogged a tile (pp != 0), widen the bar across the jog so
-      // the join is seamless instead of a 1-tile stair-step.
+      // Arm bridges, only in the shape's allowed directions.
       for (const [dx, dz] of ribbonArms(cls.shape, e.rot?.[1] ?? 0)) {
-        const hit = nearestArm(dx, dz);
-        if (!hit) continue;
-        const { dd, pp } = hit;
-        const widen = Math.abs(pp);
+        let cells = 0;
+        for (let k = 1; k <= 2; k++) {
+          const nk = dx !== 0 ? `${tx + dx * k * p},${tz}` : `${tx},${tz + dz * k * p}`;
+          if (occ && occ.has(nk)) { cells = k; break; }
+        }
+        if (!cells) continue;
+        const len = cells * p;
         if (dx !== 0) {
-          const left = dx > 0 ? tx : tx - dd;
-          const zHi = Math.max(tz, tz + pp); // top edge in tile space
+          const left = dx > 0 ? tx : tx - len;
           pushRect(bucket, layerId, e.prefab,
             (left - geom.minTX) * geom.cell,
-            (geom.maxTZ - (zHi + rd / 2)) * geom.cell, dd, rd + widen);
+            (geom.maxTZ - tz - rd / 2) * geom.cell, len, rd);
         } else {
-          const zHigh = dz > 0 ? tz + dd : tz;
-          const xLo = Math.min(tx, tx + pp);
+          const zHigh = dz > 0 ? tz + len : tz;
           pushRect(bucket, layerId, e.prefab,
-            (xLo - rw / 2 - geom.minTX) * geom.cell,
-            (geom.maxTZ - zHigh) * geom.cell, rw + widen, dd);
+            (tx - rw / 2 - geom.minTX) * geom.cell,
+            (geom.maxTZ - zHigh) * geom.cell, rw, len);
         }
       }
 
