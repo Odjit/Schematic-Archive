@@ -58,15 +58,22 @@ export const UNKNOWN_CATEGORY = 'other';
 
 // Categories whose pieces are foundation-style tiles: their PhysicsCollider
 // AABB is smaller than the placement grid cell they visually fill (a stone
-// floor foundation has a 6 m collider but tiles on a 10 m grid). Rendering
-// the collider leaves 4 m gaps on every side, so the floor reads as scattered
-// squares instead of a continuous surface. For these categories we render at
-// the detected grid pitch instead (see detectGridPitch + buildPanel).
+// floor foundation has a 6 m collider but tiles on a 10 m grid; stair pieces
+// the same). Rendering the collider leaves 4 m gaps on every side, so a floor
+// or a stair run reads as scattered squares instead of a continuous surface.
+// For these categories we render at the detected grid pitch instead (see
+// detectGridPitch + buildPanel). Stairs additionally get a direction arrow
+// drawn over the run (see detectStairRuns).
 //
 // Deliberately NOT including 'roof': filling roof blockers to the cell would
 // lay a solid sheet over the lower floors in the top-down merged view,
 // obscuring the very plan we're trying to show.
-export const FULL_CELL_CATEGORIES = new Set(['floor']);
+export const FULL_CELL_CATEGORIES = new Set(['floor', 'stairs']);
+
+// Category used to detect the grid pitch. Floors are the densest, most
+// regular tiling, so they give the cleanest modal spacing — including stairs
+// here would pollute it with their sparser, irregular runs.
+const PITCH_DETECT_CATEGORY = 'floor';
 
 // Footprint used when a prefab has no AABB in the table (chains, particle-only
 // markers, etc.). Small enough to read as "I don't know what this is" rather
@@ -171,6 +178,11 @@ export function buildCategoryLookup(prefabTable) {
         d:  entry?.d  ?? FALLBACK_D,
         y0: entry?.y0 ?? FALLBACK_Y0,
         y1: entry?.y1 ?? FALLBACK_Y1,
+        // Stairs carry kind (Start/Part/End/…) and dir (North/…); used by
+        // detectStairRuns to orient the up/down arrow. Absent for everything
+        // else.
+        kind: entry?.kind,
+        dir:  entry?.dir,
         known: !!entry,
       };
     },
@@ -224,10 +236,11 @@ export function detectFloors(schematic) {
   for (let i = 0; i < count; i++) {
     const y0 = yMin + i * FLOOR_HEIGHT_M;
     const y1 = y0 + FLOOR_HEIGHT_M;
-    let label;
-    if (i === 0) label = 'Ground';
-    else if (i === count - 1 && count >= 3) label = 'Roof';
-    else label = `Floor ${i + 1}`;
+    // Lowest band is "Ground"; everything above is numbered. We deliberately
+    // do NOT nickname the top band "Roof" — the band is just a height slice,
+    // and "Roof" collided with the roof *category* in the legend, which is a
+    // different thing (actual roof prefab pieces).
+    const label = i === 0 ? 'Ground' : `Floor ${i + 1}`;
     bands.push({
       y0, y1, label, floorIndex: i,
       yRangeStr: `${Math.round(y0)}–${Math.round(y1)} m`,
@@ -258,7 +271,7 @@ export function detectGridPitch(entities, lookup) {
   const byX = new Map();
   for (const e of entities ?? []) {
     if (!e.tilePos) continue;
-    if (!FULL_CELL_CATEGORIES.has(lookup.lookup(e.prefab).id)) continue;
+    if (lookup.lookup(e.prefab).id !== PITCH_DETECT_CATEGORY) continue;
     const [x, z] = e.tilePos;
     if (!byZ.has(z)) byZ.set(z, []);
     if (!byX.has(x)) byX.set(x, []);
@@ -294,6 +307,140 @@ export function detectGridPitch(entities, lookup) {
 }
 
 /**
+ * Group stair pieces into runs (flights) and trace each flight's path from
+ * bottom to top, so the viewer can draw a stair symbol that follows the run
+ * (bending correctly on L-shaped / switchback flights) with an up-arrow.
+ *
+ * A V Rising staircase is many prefab pieces — Lower/Upper halves plus
+ * Start / Part / End segments — that all share the same Y tags, so direction
+ * can't come from pos.y. It comes from the `kind` field instead: Start is the
+ * bottom of the flight, End is the top. We cluster pieces on orthogonally
+ * adjacent grid cells, then BFS the shortest cell path from a Start cell to an
+ * End cell. Following the cell path (rather than a straight Start→End line)
+ * keeps the arrow on the stairs for L-shaped flights.
+ *
+ * Coordinates are returned in *tile space* (the same space buildPanel works
+ * in) so any renderer can map them to its own pixels; `path` entries are cell
+ * centers (= tilePos), ordered bottom→top. A run with no identifiable
+ * direction gets `path === null` and should be drawn without an arrow.
+ *
+ * @param {Array} entities
+ * @param {ReturnType<typeof buildCategoryLookup>} lookup
+ * @param {number | null} pitch  grid pitch from detectGridPitch (cell spacing)
+ * @returns {Array<{
+ *   cells: Array<{ x: number, z: number }>,
+ *   path:  Array<{ x: number, z: number }> | null,
+ * }>}
+ */
+export function detectStairRuns(entities, lookup, pitch) {
+  const step = pitch && pitch > 0 ? pitch : FLOOR_HEIGHT_M * 2; // 10 fallback
+  // Collapse pieces to unique cells, tallying Start/End kinds per cell.
+  const cells = new Map();
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    const cls = lookup.lookup(e.prefab);
+    if (cls.id !== 'stairs') continue;
+    const [x, z] = e.tilePos;
+    const key = `${x},${z}`;
+    let c = cells.get(key);
+    if (!c) { c = { x, z, starts: 0, ends: 0, minY: Infinity }; cells.set(key, c); }
+    const kind = cls.kind ?? '';
+    if (kind.includes('Start')) c.starts++;
+    else if (kind.includes('End')) c.ends++;
+    c.minY = Math.min(c.minY, e.pos?.[1] ?? 0);
+  }
+  if (cells.size === 0) return [];
+
+  const all = [...cells.values()];
+  const keyOf = (c) => `${c.x},${c.z}`;
+
+  // Orthogonal adjacency: one step along a row or column, within ~1 grid
+  // pitch, with a little slack on the perpendicular axis for imperfect
+  // alignment. Orthogonal (not diagonal) so the traced path turns squarely
+  // through L-shaped flights instead of cutting the corner.
+  const along = step * 1.4;
+  const perp  = step * 0.5;
+  const adjacent = (a, b) => {
+    const dx = Math.abs(a.x - b.x);
+    const dz = Math.abs(a.z - b.z);
+    if (dx > 0 && dx <= along && dz <= perp) return true;
+    if (dz > 0 && dz <= along && dx <= perp) return true;
+    return false;
+  };
+
+  const centroid = (arr) => ({
+    x: arr.reduce((s, c) => s + c.x, 0) / arr.length,
+    z: arr.reduce((s, c) => s + c.z, 0) / arr.length,
+  });
+
+  // Flood the orthogonal graph into clusters (one per flight).
+  const seen = new Set();
+  const runs = [];
+  for (const seed of all) {
+    if (seen.has(keyOf(seed))) continue;
+    const stack = [seed];
+    seen.add(keyOf(seed));
+    const group = [];
+    while (stack.length) {
+      const cur = stack.pop();
+      group.push(cur);
+      for (const nb of all) {
+        if (seen.has(keyOf(nb))) continue;
+        if (adjacent(cur, nb)) { seen.add(keyOf(nb)); stack.push(nb); }
+      }
+    }
+
+    // Build a centerline path bottom→top from the Start/End centroids. Using
+    // centroids (not individual cells) keeps the line down the *middle* of a
+    // wide flight so the arrow sits on the run, not off in one lane. A bend is
+    // inserted only when a cell sits well off the straight Start→End line —
+    // i.e. a genuine L / switchback — so straight flights stay straight.
+    const starts = group.filter(c => c.starts > 0);
+    const ends   = group.filter(c => c.ends > 0);
+    let path = null;
+    if (starts.length && ends.length) {
+      const sc = centroid(starts);
+      const ec = centroid(ends);
+      const vx = ec.x - sc.x;
+      const vz = ec.z - sc.z;
+      const vlen = Math.hypot(vx, vz) || 1;
+      // Farthest cell from the straight Start→End line = the elbow candidate.
+      let corner = null;
+      let maxPerp = 0;
+      for (const c of group) {
+        const cross = Math.abs((c.x - sc.x) * vz - (c.z - sc.z) * vx) / vlen;
+        if (cross > maxPerp) { maxPerp = cross; corner = c; }
+      }
+      if (corner && maxPerp > step * 0.65) {
+        // Snap the bend to a grid-axis intersection of the endpoints so both
+        // segments are axis-aligned — a clean right angle, not the acute angle
+        // you get bending a fractional centroid toward an integer cell. Two
+        // candidates; pick the one on the side the flight actually turns
+        // (nearest the elbow cell).
+        const c1 = { x: sc.x, z: ec.z };
+        const c2 = { x: ec.x, z: sc.z };
+        const d1 = (c1.x - corner.x) ** 2 + (c1.z - corner.z) ** 2;
+        const d2 = (c2.x - corner.x) ** 2 + (c2.z - corner.z) ** 2;
+        path = [sc, d1 <= d2 ? c1 : c2, ec];
+      } else {
+        path = [sc, ec];
+      }
+    }
+
+    // Lowest piece Y in the flight — used to assign the whole run to the floor
+    // it rises from, so a vertical staircase isn't sliced across floor bands.
+    const minY = Math.min(...group.map(c => c.minY));
+
+    runs.push({
+      cells: group.map(c => ({ x: c.x, z: c.z })),
+      path,
+      minY: Number.isFinite(minY) ? minY : 0,
+    });
+  }
+  return runs;
+}
+
+/**
  * Walk the entities once and produce the per-layer rect buckets for one
  * panel.
  *
@@ -317,6 +464,12 @@ export function detectGridPitch(entities, lookup) {
  * @param {ReturnType<typeof buildCategoryLookup>} lookup
  * @param {{ minTX: number, maxTZ: number, cell: number }} geom
  * @param {null | { mode?: 'center' | 'overlap', y0: number, y1: number }} yFilter
+ * @param {{ stairCells?: Set<string> }} [opts]
+ *   stairCells: when set, stair-category pieces are kept iff their
+ *   "tileX,tileZ" key is in the set, bypassing yFilter. Lets the caller show a
+ *   whole staircase on the floor it rises from instead of slicing the vertical
+ *   flight across height bands (stairs are connectors, not single-floor
+ *   pieces). Omit to filter stairs like everything else.
  * @returns {{
  *   layers: Map<string, Map<string, { sx: number, sy: number, w: number, d: number }>>,
  *   counts: Map<string, number>,
@@ -327,7 +480,7 @@ export function detectGridPitch(entities, lookup) {
  *   skippedByBand: number
  * }}
  */
-export function buildPanel(entities, lookup, geom, yFilter) {
+export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
   const layers = new Map();
   for (const id of LAYER_ORDER) layers.set(id, new Map());
   const counts = new Map();
@@ -338,6 +491,7 @@ export function buildPanel(entities, lookup, geom, yFilter) {
   let skippedByBand = 0;
 
   const filterMode = yFilter ? (yFilter.mode ?? 'center') : null;
+  const stairCells = opts.stairCells ?? null;
 
   for (const e of entities ?? []) {
     if (!e.tilePos) { skippedNoTile++; continue; }
@@ -364,16 +518,43 @@ export function buildPanel(entities, lookup, geom, yFilter) {
     // 'overlap' mode: keep the entity if its vertical extent crosses the
     // band. Right for a continuous slider — entities don't pop in/out at
     // their centers as the slider moves.
-    if (filterMode) {
+    //
+    // Stairs are special: when the caller supplies stairCells, a vertical
+    // flight is shown whole on the floor it rises from (its run's cells),
+    // bypassing the per-piece height slice that would otherwise cut the
+    // staircase in half across two floor bands.
+    if (cls.id === 'stairs' && stairCells) {
+      if (!stairCells.has(`${e.tilePos[0]},${e.tilePos[1]}`)) { skippedByBand++; continue; }
+    } else if (filterMode) {
       const py = e.pos?.[1] ?? 0;
       if (filterMode === 'center') {
         const centerY = py + (cls.y0 + cls.y1) / 2;
         if (centerY < yFilter.y0 || centerY >= yFilter.y1) { skippedByBand++; continue; }
       } else {
-        // 'overlap': [py + cls.y0, py + cls.y1] overlaps [yFilter.y0, yFilter.y1]
+        // 'overlap': keep the entity if its vertical extent meets the band.
+        //
+        // Two regimes, because floors are infinitely thin and walls are not:
+        //
+        //   - Tall pieces (walls, stairs, …) use a half-open overlap:
+        //     (eMin, eMax) must intersect [y0, y1]. A wall ending exactly at
+        //     the band floor — extent [5, 10] against band [10, 15] — belongs
+        //     to the floor *below* and is correctly excluded, while a wall
+        //     spanning [10, 15] is kept.
+        //
+        //   - Zero-height pieces (floor tiles: cls.y0 == cls.y1) use an
+        //     inclusive plane-in-band test with SLICE_EDGE_EPS slack, so the
+        //     floor tile at y=10 still appears in a slice starting at 10.
+        //     Without this the slider would show walls hovering over no floor.
+        //     Because the slider window is one FLOOR_HEIGHT_M tall, every
+        //     window contains at least one floor plane, so a floor surface is
+        //     always visible as you drag.
         const eMin = py + cls.y0;
         const eMax = py + cls.y1;
-        if (eMax <= yFilter.y0 || eMin >= yFilter.y1) { skippedByBand++; continue; }
+        const isThin = (eMax - eMin) <= SLICE_EDGE_EPS;
+        const inBand = isThin
+          ? (eMin >= yFilter.y0 - SLICE_EDGE_EPS && eMin <= yFilter.y1 + SLICE_EDGE_EPS)
+          : (eMax > yFilter.y0 && eMin < yFilter.y1);
+        if (!inBand) { skippedByBand++; continue; }
       }
     }
 

@@ -87,6 +87,10 @@ export interface PrefabLookupResult {
   d: number;
   y0: number;
   y1: number;
+  /** Stairs only: Start / Part / End (+ TopFloor variants). */
+  kind?: string;
+  /** Stairs only: facing direction (North / East / South / West). */
+  dir?: string;
   known: boolean;
 }
 
@@ -173,6 +177,30 @@ export function detectGridPitch(
   lookup: CategoryLookup,
 ): number | null;
 
+export interface StairRun {
+  /** All grid cells (tilePos) that make up the flight. */
+  cells: { x: number; z: number }[];
+  /**
+   * Ordered cell-center path from bottom (Start) to top (End), following the
+   * flight's cells so L-shaped runs bend correctly. null if direction can't
+   * be determined (draw without an arrow).
+   */
+  path: { x: number; z: number }[] | null;
+  /** Lowest piece Y in the flight — the floor it rises from. */
+  minY: number;
+}
+
+/**
+ * Cluster stair pieces into flights and trace each from bottom (Start) to top
+ * (End) so a renderer can draw a stair symbol + up-arrow that follows the
+ * run. Coordinates are tile-space cell centers.
+ */
+export function detectStairRuns(
+  entities: SchematicEntity[] | undefined,
+  lookup: CategoryLookup,
+  pitch: number | null,
+): StairRun[];
+
 // ---------------------------------------------------------------------------
 // Per-panel build.
 
@@ -193,9 +221,19 @@ export interface PanelResult {
   skippedByBand: number;
 }
 
+export interface BuildPanelOptions {
+  /**
+   * When set, stair-category pieces are kept iff their "tileX,tileZ" key is in
+   * the set, bypassing yFilter — so a whole staircase shows on the floor it
+   * rises from rather than being sliced across height bands.
+   */
+  stairCells?: Set<string>;
+}
+
 export function buildPanel(
   entities: SchematicEntity[] | undefined,
   lookup: CategoryLookup,
   geom: PanelGeom,
   yFilter: YFilter | null,
+  opts?: BuildPanelOptions,
 ): PanelResult;
