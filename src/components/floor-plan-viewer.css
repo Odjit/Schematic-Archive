@@ -74,6 +74,10 @@
   display: block;
   max-width: 100%;
   height: auto;
+  cursor: grab;
+  /* We handle pan/pinch ourselves via pointer events, so stop the browser
+   * from treating touch drags as scroll/zoom. */
+  touch-action: none;
   /* The canvas's intrinsic size is set in floorplan-canvas.ts to drawW x
    * drawH CSS pixels (with a DPR-scaled backing store). max-width here lets
    * narrow containers shrink the bitmap; aspect ratio is preserved via the

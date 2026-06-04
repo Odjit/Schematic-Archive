@@ -20,11 +20,17 @@ import {
 } from '../lib/floorplan';
 import {
   buildPalette,
+  clampTransform,
+  clientToCanvas,
   configureCanvasForLayout,
   drawPanel,
   FLOORPLAN_THEMES,
   DEFAULT_THEME_NAME,
+  IDENTITY_TRANSFORM,
+  MAX_ZOOM,
+  MIN_ZOOM,
   type FloorPlanTheme,
+  type Transform,
 } from '../lib/floorplan-canvas';
 
 interface Props {
@@ -91,6 +97,8 @@ export default function FloorPlanViewer({
   const [selection, setSelection] = useState<Selection>(ALL);
   // Category ids the user has toggled off in the legend.
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Pan/zoom. panX/panY are in unzoomed content px; zoom in [MIN,MAX].
+  const [transform, setTransform] = useState<Transform>(IDENTITY_TRANSFORM);
 
   const toggleLayer = (id: string) =>
     setHidden(prev => {
@@ -106,6 +114,7 @@ export default function FloorPlanViewer({
     setError(null);
     setSelection(ALL);
     setHidden(new Set());
+    setTransform(IDENTITY_TRANSFORM);
     (async () => {
       try {
         const [schemaRes, tableRes] = await Promise.all([
@@ -193,7 +202,9 @@ export default function FloorPlanViewer({
     configureCanvasForLayout(canvasRef.current, data.layout);
   }, [data]);
 
-  // Repaint whenever the bucketed panel, theme, or hidden set changes.
+  // Repaint whenever the bucketed panel, theme, hidden set, or transform
+  // changes. Only drawPanel re-runs on pan/zoom — the panel buckets are
+  // memoized and unaffected — so dragging stays cheap.
   useEffect(() => {
     if (!panel || !data || !palette || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
@@ -201,8 +212,108 @@ export default function FloorPlanViewer({
     drawPanel(ctx, panel, data.layout, palette, theme, {
       hiddenLayers: hidden,
       stairRuns,
+      transform,
     });
-  }, [panel, data, palette, theme, hidden, stairRuns]);
+  }, [panel, data, palette, theme, hidden, stairRuns, transform]);
+
+  // Pan/zoom: wheel zooms toward the cursor, one-pointer drag pans, two-pointer
+  // pinch zooms + pans. Native listeners (not Preact props) so wheel can
+  // preventDefault (passive:false) and pointer capture works during drags.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !data) return;
+    const { drawW, drawH } = data.layout;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let lastDist: number | null = null;
+    let lastMid: { x: number; y: number } | null = null;
+
+    const at = (e: PointerEvent | WheelEvent) =>
+      clientToCanvas(canvas, e.clientX, e.clientY);
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const c = at(e);
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      setTransform(t => {
+        const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, t.zoom * factor));
+        // Keep the content point under the cursor fixed.
+        const px = c.x / t.zoom + t.panX;
+        const py = c.y / t.zoom + t.panY;
+        return clampTransform(
+          { zoom, panX: px - c.x / zoom, panY: py - c.y / zoom },
+          drawW, drawH,
+        );
+      });
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* stray/synthetic id */ }
+      pointers.set(e.pointerId, at(e));
+      lastDist = null;
+      lastMid = null;
+      canvas.style.cursor = 'grabbing';
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId)!;
+      const cur = at(e);
+      pointers.set(e.pointerId, cur);
+
+      if (pointers.size === 1) {
+        const dx = cur.x - prev.x;
+        const dy = cur.y - prev.y;
+        setTransform(t => clampTransform(
+          { zoom: t.zoom, panX: t.panX - dx / t.zoom, panY: t.panY - dy / t.zoom },
+          drawW, drawH,
+        ));
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (lastDist != null && lastMid != null) {
+          const factor = dist / lastDist;
+          const dmx = mid.x - lastMid.x;
+          const dmy = mid.y - lastMid.y;
+          setTransform(t => {
+            const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, t.zoom * factor));
+            const px = mid.x / t.zoom + t.panX;
+            const py = mid.y / t.zoom + t.panY;
+            return clampTransform(
+              { zoom, panX: px - mid.x / zoom - dmx / zoom, panY: py - mid.y / zoom - dmy / zoom },
+              drawW, drawH,
+            );
+          });
+        }
+        lastDist = dist;
+        lastMid = mid;
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) { lastDist = null; lastMid = null; }
+      if (pointers.size === 0) canvas.style.cursor = 'grab';
+    };
+
+    const onDblClick = () => setTransform(IDENTITY_TRANSFORM);
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerUp);
+    canvas.addEventListener('dblclick', onDblClick);
+    canvas.style.cursor = 'grab';
+    return () => {
+      canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('dblclick', onDblClick);
+    };
+  }, [data]);
 
   // Legend rows: one per non-empty category in the *current* view, most
   // common first (mirrors the SVG legend's ordering).

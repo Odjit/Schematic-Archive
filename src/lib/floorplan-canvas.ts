@@ -86,13 +86,16 @@ function drawGrid(
   ctx: CanvasRenderingContext2D,
   layout: PanelLayout,
   theme: FloorPlanTheme,
+  zoom: number,
 ): void {
   const { cell, drawW, drawH, minTX, maxTZ, tilesD } = layout;
   const step = theme.gridStep;
   if (!theme.gridLine || !step || step <= 0) return;
 
   ctx.strokeStyle = theme.gridLine;
-  ctx.lineWidth = 1;
+  // Keep grid lines ~1 CSS px regardless of zoom (line width is in the scaled
+  // user space, so divide out the zoom).
+  ctx.lineWidth = 1 / zoom;
   ctx.beginPath();
 
   // Vertical lines at world tile X = k*step.
@@ -253,7 +256,7 @@ export function drawPanel(
   }
 
   // Grid overlay, then stair arrows, on top of the fills.
-  drawGrid(ctx, layout, theme);
+  drawGrid(ctx, layout, theme, zoom);
   if (stairRuns && stairRuns.length && !hiddenLayers?.has('stairs')) {
     drawStairArrows(ctx, stairRuns, layout);
   }
@@ -288,9 +291,12 @@ export function configureCanvasForLayout(
 }
 
 /**
- * Convert a mouse/touch event's clientX/clientY to canvas-CSS-pixel
- * coordinates (i.e. pre-DPR-scaled). Step 4 will use this to compute pan
- * deltas; step 6 will use it for tooltip hit-testing.
+ * Convert a pointer event's clientX/clientY to the canvas's *logical* drawing
+ * coordinates (the 0..drawW × 0..drawH space drawPanel paints in). The canvas
+ * is displayed at `style.width` but may be shrunk by `max-width:100%`, so we
+ * rescale by drawW/rect.width. This is the display-space point `s` in
+ * drawPanel's transform `s = (p - pan) * zoom`; the caller inverts it to a
+ * content point for zoom-to-cursor / hit-testing.
  */
 export function clientToCanvas(
   canvas: HTMLCanvasElement,
@@ -298,8 +304,34 @@ export function clientToCanvas(
   clientY: number,
 ): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
+  const drawW = parseFloat(canvas.style.width)  || rect.width  || 1;
+  const drawH = parseFloat(canvas.style.height) || rect.height || 1;
+  const sx = rect.width  ? drawW / rect.width  : 1;
+  const sy = rect.height ? drawH / rect.height : 1;
   return {
-    x: clientX - rect.left,
-    y: clientY - rect.top,
+    x: (clientX - rect.left) * sx,
+    y: (clientY - rect.top)  * sy,
+  };
+}
+
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 8;
+
+/**
+ * Clamp a transform: zoom into [MIN_ZOOM, MAX_ZOOM], and pan so the content
+ * always fills the viewport (no empty margins). At zoom 1 this pins pan to 0.
+ */
+export function clampTransform(
+  t: Transform,
+  drawW: number,
+  drawH: number,
+): Transform {
+  const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, t.zoom));
+  const maxPanX = drawW * (1 - 1 / zoom);
+  const maxPanY = drawH * (1 - 1 / zoom);
+  return {
+    zoom,
+    panX: Math.max(0, Math.min(maxPanX, t.panX)),
+    panY: Math.max(0, Math.min(maxPanY, t.panY)),
   };
 }
