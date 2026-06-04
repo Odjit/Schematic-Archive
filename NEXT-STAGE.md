@@ -37,3 +37,28 @@ Preact, deploys to GitHub Pages.
 - **Carpets** are untested on real data (no demo build has them) — add one.
 - Pavement doesn't bridge openings wider than ~2 cells; revisit if it shows up.
 - Entry page: real README/related-entries (currently summary placeholder).
+
+## Planned: taxonomy + form redesign (maintainer-directed)
+- **Top-level Type**: Build vs Modular Room (for the Catacombs mod — small rooms
+  the mod assembles into dungeons). Each Type gets its own category set; rooms
+  may later carry connector/exit metadata.
+- **Auto-derive at build time from the `.schematic`** (and drop from the form):
+  - `objectCount` = `entities.length`
+  - `footprint` = from `boundingBox` size
+  - `version` = file's top-level `version` (e.g. `"1.0.1"`)
+  - `placement`: **territory-bound** if the file has `territoryIndex` (these
+    have no `boundingBox`/`location`) — confirmed against a sample; otherwise
+    **placeable**. Coord-locked-vs-anywhere is a softer call, TBD.
+  - DLC packs: classifier on prefab name tokens (confirmed present in the build
+    prefabs). Mapping: `Bloodline`→eldest-bloodline, `Relic`/`Draculas`→
+    draculas-relics, `Halloween`→haunted-nights, `Gloomrot`→sinister-evolution,
+    `ProjectK`→castlevania, `Blackfang`→eternal-dominance. Emit a `pack` per
+    prefab in build-render-prefabs; build-index unions packs across an entry's
+    entities. (Reference dump: C:\Repositories\Info\Info\EntityStateFiles.)
+- **Slim the submit form** to human-only fields: type, title, summary, author,
+  category, themes, modes, schematic file, screenshots, notes. Everything above
+  is derived. Update `manifest.schema.json` (make derived fields optional; add
+  `type` + `placement` enums) and `site-config.ts` (add the Modular Room
+  category set + the placement facet).
+- Research done — territory rule and DLC tokens both confirmed; what's left is
+  the implementation (build-index extraction, schema, site-config, slim form).
