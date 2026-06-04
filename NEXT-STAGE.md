@@ -49,12 +49,14 @@ Preact, deploys to GitHub Pages.
   - `placement`: **territory-bound** if the file has `territoryIndex` (these
     have no `boundingBox`/`location`) — confirmed against a sample; otherwise
     **placeable**. Coord-locked-vs-anywhere is a softer call, TBD.
-  - DLC packs: classifier on prefab name tokens (confirmed present in the build
-    prefabs). Mapping: `Bloodline`→eldest-bloodline, `Relic`/`Draculas`→
-    draculas-relics, `Halloween`→haunted-nights, `Gloomrot`→sinister-evolution,
-    `ProjectK`→castlevania, `Blackfang`→eternal-dominance. Emit a `pack` per
-    prefab in build-render-prefabs; build-index unions packs across an entry's
-    entities. (Reference dump: C:\Repositories\Info\Info\EntityStateFiles.)
+  - DLC packs: classifier on prefab name tokens, read from the BuildMenuGroup
+    names in the dump. Confirmed: `DLC01`/`DraculasRelic`→draculas-relics,
+    `DLC02`/`Gloomrot`→sinister-evolution, `ProjectK`→castlevania,
+    `Halloween`→haunted-nights. STILL OPEN (need maintainer): `Strongblade`→?,
+    `Royal`/`RoyalDLC01`→?, and the tokens for Eldest Bloodline + Eternal
+    Dominance. Emit a `pack` per prefab in build-render-prefabs; build-index
+    unions packs across an entry's entities. (Dump:
+    C:\Repositories\Info\Info\EntityStateFiles.)
 - **Slim the submit form** to human-only fields: type, title, summary, author,
   category, themes, modes, schematic file, screenshots, notes. Everything above
   is derived. Update `manifest.schema.json` (make derived fields optional; add
