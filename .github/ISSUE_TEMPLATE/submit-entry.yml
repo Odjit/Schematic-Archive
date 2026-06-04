@@ -157,7 +157,7 @@ body:
     id: schematic
     attributes:
       label: Schematic file
-      description: Attach your .kindredschematic file by dragging it into this box.
+      description: Attach your .schematic file by dragging it into this box.
     validations:
       required: true
 
