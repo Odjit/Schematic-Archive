@@ -3,6 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "The Schematic Archive: a community gallery of V Rising builds for the KindredSchematics mod.",
   "scripts": {
     "dev": "pnpm run build-render-prefabs && pnpm run build-index && astro dev",
