@@ -13,7 +13,8 @@
     "build-render-prefabs": "node scripts/build-render-prefabs.mjs",
     "render-floorplan": "node scripts/render-floorplan.mjs",
     "validate": "node scripts/validate-manifests.mjs",
-    "og": "node scripts/build-og.mjs"
+    "og": "node scripts/build-og.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "@astrojs/preact": "^4.0.0",

@@ -1,0 +1,172 @@
+/**
+ * Unit tests for the pure floor-plan lib (src/lib/floorplan.mjs).
+ *
+ * These lock in the behavior the SVG renderer and the Canvas viewer both
+ * depend on — the "regression target" for the lift-and-shift refactor. Run
+ * with `npm test` (node --test, no extra deps).
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  buildCategoryLookup,
+  buildPanel,
+  computePanelLayout,
+  detectFloors,
+  detectGridPitch,
+  detectStairRuns,
+  swapsWidthDepth,
+  FULL_CELL_CATEGORIES,
+} from '../src/lib/floorplan.mjs';
+
+// --- Minimal prefab table shared by the synthetic tests. -------------------
+const TABLE = {
+  categories: [
+    { id: 'floor',  label: 'Floor',  color: '#a' },
+    { id: 'wall',   label: 'Wall',   color: '#b' },
+    { id: 'stairs', label: 'Stairs', color: '#c' },
+    { id: 'other',  label: 'Other',  color: '#0' },
+  ],
+  prefabs: {
+    Floor:      { category: 'floor',  w: 6, d: 6, y0: 0, y1: 0 },
+    Wall:       { category: 'wall',   w: 5, d: 1, y0: 0, y1: 5 },
+    StairStart: { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Start', dir: 'North' },
+    StairMid:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Part',  dir: 'North' },
+    StairEnd:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'End',   dir: 'North' },
+  },
+};
+const lookup = buildCategoryLookup(TABLE);
+const ent = (prefab, x, z, y = 0, rot = [0, 0, 0]) =>
+  ({ prefab, tilePos: [x, z], pos: [x, y, z], rot });
+
+// --------------------------------------------------------------------------
+test('swapsWidthDepth: 90/270 swap, 0/180 do not', () => {
+  assert.equal(swapsWidthDepth([0, 0, 0]), false);
+  assert.equal(swapsWidthDepth([0, 90, 0]), true);
+  assert.equal(swapsWidthDepth([0, 180, 0]), false);
+  assert.equal(swapsWidthDepth([0, 270, 0]), true);
+  assert.equal(swapsWidthDepth([0, -90, 0]), true);   // normalizes to 270
+  assert.equal(swapsWidthDepth(undefined), false);
+});
+
+test('buildCategoryLookup: known vs unknown + kind/dir passthrough', () => {
+  const wall = lookup.lookup('Wall');
+  assert.equal(wall.id, 'wall');
+  assert.equal(wall.w, 5);
+  assert.equal(wall.known, true);
+  const start = lookup.lookup('StairStart');
+  assert.equal(start.kind, 'Start');
+  assert.equal(start.dir, 'North');
+  const unknown = lookup.lookup('NopePrefab');
+  assert.equal(unknown.id, 'other');     // UNKNOWN_CATEGORY fallback
+  assert.equal(unknown.known, false);
+});
+
+test('detectFloors: single-floor build yields no slices', () => {
+  const schem = { boundingBox: { min: [0, 0, 0], max: [10, 2, 10] } };
+  assert.deepEqual(detectFloors(schem), []);
+});
+
+test('detectFloors: multi-floor labels are Ground + Floor N (no "Roof")', () => {
+  const schem = { boundingBox: { min: [0, 0, 0], max: [10, 15, 10] } };
+  const labels = detectFloors(schem).map(b => b.label);
+  assert.deepEqual(labels, ['Ground', 'Floor 2', 'Floor 3']);
+});
+
+test('detectGridPitch: modal floor spacing, ignoring non-floor', () => {
+  const entities = [
+    ent('Floor', 0, 0), ent('Floor', 10, 0), ent('Floor', 20, 0),
+    ent('Floor', 0, 10), ent('Floor', 10, 10),
+    ent('Wall', 3, 0), ent('Wall', 8, 0), // closer spacing, must be ignored
+  ];
+  assert.equal(detectGridPitch(entities, lookup), 10);
+});
+
+test('detectGridPitch: returns null without enough floor tiles', () => {
+  assert.equal(detectGridPitch([ent('Wall', 0, 0)], lookup), null);
+});
+
+test('buildPanel: counts per category and full-cell floor sizing', () => {
+  assert.ok(FULL_CELL_CATEGORIES.has('floor'));
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const entities = [ent('Floor', 0, 0), ent('Wall', 0, 0)];
+  const panel = buildPanel(entities, lookup, geom, null);
+  assert.equal(panel.placed, 2);
+  assert.equal(panel.counts.get('floor'), 1);
+  assert.equal(panel.counts.get('wall'), 1);
+  // Floor renders at the grid pitch (10), not its 6-tile collider.
+  const floorRect = [...panel.layers.get('floor').values()][0];
+  assert.equal(floorRect.w, 10);
+  assert.equal(floorRect.d, 10);
+});
+
+test('buildPanel: center-mode yFilter keeps only in-band centers', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  // Wall at y=0 has center 2.5 (band [0,5)); wall at y=10 center 12.5 (band [10,15)).
+  const entities = [ent('Wall', 0, 0, 0), ent('Wall', 5, 0, 10)];
+  const ground = buildPanel(entities, lookup, geom, { mode: 'center', y0: 0, y1: 5 });
+  assert.equal(ground.placed, 1);
+});
+
+test('buildPanel: stairCells overrides yFilter for stairs', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  // Stair at y=20 would fail a [0,5) center test, but stairCells forces it in.
+  const entities = [ent('StairStart', 7, 7, 20)];
+  const cells = new Set(['7,7']);
+  const panel = buildPanel(entities, lookup, geom, { mode: 'center', y0: 0, y1: 5 }, { stairCells: cells });
+  assert.equal(panel.counts.get('stairs'), 1);
+  // A different cell set excludes it.
+  const empty = buildPanel(entities, lookup, geom, { mode: 'center', y0: 0, y1: 5 }, { stairCells: new Set() });
+  assert.equal(empty.counts.get('stairs'), undefined);
+});
+
+test('buildPanel: collectHits returns per-entity rects with prefab names', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const panel = buildPanel([ent('Wall', 2, 2)], lookup, geom, null, { collectHits: true });
+  assert.equal(panel.hits.length, 1);
+  assert.equal(panel.hits[0].prefab, 'Wall');
+  assert.equal(panel.hits[0].layerId, 'wall');
+  assert.ok(panel.hits[0].w > 0 && panel.hits[0].h > 0);
+  // No hits collected by default.
+  assert.equal(buildPanel([ent('Wall', 2, 2)], lookup, geom, null).hits, null);
+});
+
+test('detectStairRuns: straight flight is a 2-point centerline', () => {
+  const entities = [
+    ent('StairStart', 0, 0), ent('StairMid', 10, 0), ent('StairEnd', 20, 0),
+  ];
+  const runs = detectStairRuns(entities, lookup, 10);
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].path.length, 2);
+  assert.equal(runs[0].minY, 0);
+});
+
+test('detectStairRuns: L-flight bends with axis-aligned segments', () => {
+  const entities = [
+    ent('StairStart', 0, 0), ent('StairMid', 10, 0), ent('StairEnd', 10, 10),
+  ];
+  const [run] = detectStairRuns(entities, lookup, 10);
+  assert.equal(run.path.length, 3);
+  for (let i = 1; i < run.path.length; i++) {
+    const a = run.path[i - 1], b = run.path[i];
+    const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
+    assert.ok(dx < 0.01 || dz < 0.01, 'each segment is axis-aligned');
+  }
+});
+
+test('detectStairRuns: minY reflects the lowest piece (origin floor)', () => {
+  const entities = [
+    ent('StairStart', 0, 0, 15), ent('StairEnd', 10, 0, 20),
+  ];
+  const [run] = detectStairRuns(entities, lookup, 10);
+  assert.equal(run.minY, 15);
+});
+
+test('computePanelLayout: derives tile extent and clamps cell size', () => {
+  const schem = { boundingBox: { min: [0, 0, 0], max: [200, 10, 100] } };
+  const layout = computePanelLayout(schem);
+  assert.equal(layout.tilesW, 200);
+  assert.equal(layout.tilesD, 100);
+  assert.equal(layout.drawW, layout.tilesW * layout.cell);
+  assert.ok(layout.cell >= 2 && layout.cell <= 8);
+});
