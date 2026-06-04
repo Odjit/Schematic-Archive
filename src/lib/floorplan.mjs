@@ -49,6 +49,7 @@ export const LAYER_ORDER = [
   'coffin',
   'light',
   'teleporter',
+  'servant',
   'other',
   // always on top
   'heart',
@@ -168,14 +169,25 @@ export function buildCategoryLookup(prefabTable) {
   return {
     lookup(prefabName) {
       const entry = prefabTable.prefabs[prefabName];
-      const id = entry?.category ?? UNKNOWN_CATEGORY;
+      let id = entry?.category;
+      let known = !!entry;
+      let fw;
+      let fd;
+      if (!entry) {
+        // Name-pattern fallback for entities the structural prefab dump
+        // doesn't carry (no PhysicsCollider AABB) — e.g. placed NPCs. Without
+        // this they'd read as generic "unknown" 1×1 markers.
+        const fb = NAME_FALLBACKS.find(f => f.test.test(prefabName));
+        if (fb) { id = fb.id; known = true; fw = fb.w; fd = fb.d; }
+      }
+      id = id ?? UNKNOWN_CATEGORY;
       const meta = byCategory.get(id) ?? byCategory.get(UNKNOWN_CATEGORY);
       return {
         id,
         color: meta.color,
         label: meta.label,
-        w:  entry?.w  ?? FALLBACK_W,
-        d:  entry?.d  ?? FALLBACK_D,
+        w:  entry?.w  ?? fw ?? FALLBACK_W,
+        d:  entry?.d  ?? fd ?? FALLBACK_D,
         y0: entry?.y0 ?? FALLBACK_Y0,
         y1: entry?.y1 ?? FALLBACK_Y1,
         // Stairs carry kind (Start/Part/End/…) and dir (North/…); used by
@@ -183,12 +195,19 @@ export function buildCategoryLookup(prefabTable) {
         // else.
         kind: entry?.kind,
         dir:  entry?.dir,
-        known: !!entry,
+        known,
       };
     },
     categories: prefabTable.categories,
   };
 }
+
+// Name-pattern classification for entities absent from the structural dump.
+// Ordered; first match wins. Footprint is a small marker since these have no
+// collider AABB to size from.
+const NAME_FALLBACKS = [
+  { test: /^CHAR_/, id: 'servant', w: 2, d: 2 },
+];
 
 /**
  * Map an entity's Y-axis Euler rotation (in degrees) to one of the four

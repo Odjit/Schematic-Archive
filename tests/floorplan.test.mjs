@@ -22,10 +22,11 @@ import {
 // --- Minimal prefab table shared by the synthetic tests. -------------------
 const TABLE = {
   categories: [
-    { id: 'floor',  label: 'Floor',  color: '#a' },
-    { id: 'wall',   label: 'Wall',   color: '#b' },
-    { id: 'stairs', label: 'Stairs', color: '#c' },
-    { id: 'other',  label: 'Other',  color: '#0' },
+    { id: 'floor',   label: 'Floor',   color: '#a' },
+    { id: 'wall',    label: 'Wall',    color: '#b' },
+    { id: 'stairs',  label: 'Stairs',  color: '#c' },
+    { id: 'servant', label: 'Servant', color: '#d' },
+    { id: 'other',   label: 'Other',   color: '#0' },
   ],
   prefabs: {
     Floor:      { category: 'floor',  w: 6, d: 6, y0: 0, y1: 0 },
@@ -60,6 +61,14 @@ test('buildCategoryLookup: known vs unknown + kind/dir passthrough', () => {
   const unknown = lookup.lookup('NopePrefab');
   assert.equal(unknown.id, 'other');     // UNKNOWN_CATEGORY fallback
   assert.equal(unknown.known, false);
+});
+
+test('buildCategoryLookup: CHAR_* classifies as servant via name fallback', () => {
+  const npc = lookup.lookup('CHAR_Militia_Guard');
+  assert.equal(npc.id, 'servant');
+  assert.equal(npc.known, true);          // recognized, not "unknown"
+  assert.equal(npc.w, 2);                 // small marker footprint
+  assert.equal(npc.d, 2);
 });
 
 test('detectFloors: single-floor build yields no slices', () => {

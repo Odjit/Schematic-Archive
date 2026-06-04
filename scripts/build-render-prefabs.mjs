@@ -77,6 +77,7 @@ const CATEGORIES = [
   { id: 'storage',     label: 'Storage',      color: '#7a5fbe' },
   { id: 'coffin',      label: 'Coffin',       color: '#412a52' },
   { id: 'teleporter',  label: 'Teleporter',   color: '#39b7a7' },
+  { id: 'servant',     label: 'Servant / NPC', color: '#e06ec9' },
   { id: 'light',       label: 'Light',        color: '#f0c060' },
   { id: 'plant',       label: 'Plant',        color: '#4f9e4a' },
   { id: 'fence',       label: 'Fence / Chain', color: '#8a7a5a' },
