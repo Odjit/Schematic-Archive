@@ -28,7 +28,15 @@
   color: var(--color-accent);
 }
 
-.gb__topright { display: flex; gap: var(--space-3); align-items: center; }
+.gb__topright {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  /* Let the search/sort row wrap and shrink instead of overflowing the
+   * viewport on mobile (the search input used to hold a hard 240px floor). */
+  flex-wrap: wrap;
+  min-width: 0;
+}
 .gb__search {
   background: var(--color-surface);
   color: var(--color-text);
@@ -36,7 +44,10 @@
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
   font: inherit;
-  min-width: 240px;
+  /* Grow to fill, but allow shrinking below the comfortable width on narrow
+   * screens (min-width:0 overrides the input's intrinsic min content size). */
+  flex: 1 1 200px;
+  min-width: 0;
 }
 .gb__search:focus { outline: none; border-color: var(--color-accent); }
 .gb__sort {
@@ -46,6 +57,8 @@
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
   font: inherit;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .gb__body {
