@@ -15,7 +15,7 @@
   "objectCount": 248,
   "gameVersion": "1.1",
   "modVersion": ">=2.4.0",
-  "schematicFile": "humble-outpost.kindredschematic",
+  "schematicFile": "humble-outpost.schematic",
   "screenshots": [
     "screenshots/01-overview.svg",
     "screenshots/02-interior.svg"

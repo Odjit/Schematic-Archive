@@ -15,7 +15,7 @@
   "objectCount": 814,
   "gameVersion": "1.1",
   "modVersion": ">=2.4.0",
-  "schematicFile": "emerald-garden.kindredschematic",
+  "schematicFile": "emerald-garden.schematic",
   "screenshots": [
     "screenshots/01-plaza.svg",
     "screenshots/02-greenhouse.svg"

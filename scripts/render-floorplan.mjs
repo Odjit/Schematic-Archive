@@ -2,7 +2,7 @@
 /**
  * render-floorplan.mjs
  *
- * Reads a .kindredschematic (JSON) and produces a top-down SVG floor plan.
+ * Reads a .schematic (JSON) and produces a top-down SVG floor plan.
  *
  * - Used by build-index.mjs at site-build time to auto-generate
  *   dist/entry-assets/<slug>/floorplan.svg for every build that ships a
@@ -62,7 +62,7 @@ import {
 } from '../src/lib/floorplan.mjs';
 
 /**
- * @param {object} schematic   parsed .kindredschematic JSON
+ * @param {object} schematic   parsed .schematic JSON
  * @param {object} prefabTable parsed render-prefabs.json
  * @param {object} [opts]
  * @param {number} [opts.targetWidth=800]  max SVG width in px

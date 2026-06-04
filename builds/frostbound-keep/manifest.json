@@ -16,7 +16,7 @@
   "objectCount": 1432,
   "gameVersion": "1.1",
   "modVersion": ">=2.4.0",
-  "schematicFile": "frostbound-keep.kindredschematic",
+  "schematicFile": "frostbound-keep.schematic",
   "screenshots": [
     "screenshots/01-exterior.svg",
     "screenshots/02-throne-room.svg",

@@ -9,7 +9,7 @@
 
 // ---------------------------------------------------------------------------
 // Data shapes — mirror the slim render-prefabs.json (schema v4) and the
-// .kindredschematic JSON.
+// .schematic JSON.
 
 export interface PrefabCategory {
   id: string;
@@ -42,7 +42,7 @@ export interface PrefabTable {
   prefabs: Record<string, PrefabTableEntry>;
 }
 
-/** One placed entity in a .kindredschematic file. */
+/** One placed entity in a .schematic file. */
 export interface SchematicEntity {
   prefab: string;
   /** [tileX, tileZ] — present on every placed piece. */

@@ -36,7 +36,7 @@ import {
 } from '../lib/floorplan-canvas';
 
 interface Props {
-  /** URL to the .kindredschematic JSON file (served from /entry-assets/<slug>/). */
+  /** URL to the .schematic JSON file (served from /entry-assets/<slug>/). */
   schematicUrl: string;
   /** URL to render-prefabs.json (served once from /data/). */
   prefabTableUrl: string;

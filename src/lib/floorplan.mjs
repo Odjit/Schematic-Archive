@@ -162,7 +162,7 @@ const DEFAULT_MAX_CELL     = 8;
  * `{tilesW, tilesD, drawW, drawH}` are the panel size in tile and pixel
  * units, used by the caller to size its own surface.
  *
- * @param {object} schematic parsed .kindredschematic JSON
+ * @param {object} schematic parsed .schematic JSON
  * @param {object} [opts]
  * @param {number} [opts.targetWidth=800] target panel width in px; cell is
  *   floor(targetWidth / tilesW), clamped to [minCell, maxCell]
@@ -291,7 +291,7 @@ export function swapsWidthDepth(rotEulerDeg) {
  * Single-floor builds (Y range < ~0.6 of one floor height) return [] — the
  * caller should skip slicing entirely for those.
  *
- * @param {object} schematic parsed .kindredschematic JSON
+ * @param {object} schematic parsed .schematic JSON
  * @returns {Array<{ y0: number, y1: number, label: string, floorIndex: number, yRangeStr: string }>}
  */
 export function detectFloors(schematic) {
