@@ -132,8 +132,11 @@ const RULES = [
   (n)    => /(?:Roof|Roofing)/.test(n)                              && 'roof',
   (n)    => /(?:^|_)Stairs(?:_|\d|$)/.test(n)                       && 'stairs',
   (n)    => /(?:^|_)Floor(?:_|\d|$)/.test(n)                        && 'floor',
+  // Doors BEFORE walls: "TM_Castle_Wall_Door_..." carries both "Wall" and
+  // "Door"; matching wall first hid every doorway as plain wall. (Floor runs
+  // earlier so "Floor_Outdoor" cobblestone stays a floor, not a door.)
+  (n, f) => (f.door || /Door(?=_|\d|$)|Gate(?=_|\d|$)/.test(n))     && 'door',
   (n)    => /Walls?(?=_|\d|$)|Fortification(?=_|\d|$)/.test(n)      && 'wall',
-  (n, f) => (f.door || /Door(?=_|\d|$)|Gate(?=_|\d|$)/.test(n)) && 'door',
 
   // 6) Fence / railing / hedge — loose tail catches "VineyardFence",
   //    "IronFencePole", "Hedgerow01".
