@@ -660,34 +660,42 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       const [tx, tz] = e.tilePos;
       const rw = cls.w;
       const rd = cls.d;
+      // Nearest neighbour along an arm: distance dd + perpendicular offset pp
+      // (paths jog a tile across openings). null if none in range.
       const nearestArm = (dx, dz) => {
-        if (!occ) return 0;
+        if (!occ) return null;
         for (let dd = 1; dd <= maxBridge; dd++) {
           for (const pp of [0, -1, 1]) {
             const k = dx !== 0 ? `${tx + dx * dd},${tz + pp}` : `${tx + pp},${tz + dz * dd}`;
-            if (occ.has(k)) return dd;
+            if (occ.has(k)) return { dd, pp };
           }
         }
-        return 0;
+        return null;
       };
       // Base tile.
       pushRect(bucket, layerId, e.prefab,
         (tx - rw / 2 - geom.minTX) * geom.cell,
         (geom.maxTZ - tz - rd / 2) * geom.cell, rw, rd);
-      // Arm bridges, only in the directions this piece's shape allows.
+      // Arm bridges, only in the directions this piece's shape allows. When the
+      // neighbour is jogged a tile (pp != 0), widen the bar across the jog so
+      // the join is seamless instead of a 1-tile stair-step.
       for (const [dx, dz] of ribbonArms(cls.shape, e.rot?.[1] ?? 0)) {
-        const dd = nearestArm(dx, dz);
-        if (!dd) continue;
+        const hit = nearestArm(dx, dz);
+        if (!hit) continue;
+        const { dd, pp } = hit;
+        const widen = Math.abs(pp);
         if (dx !== 0) {
           const left = dx > 0 ? tx : tx - dd;
+          const zHi = Math.max(tz, tz + pp); // top edge in tile space
           pushRect(bucket, layerId, e.prefab,
             (left - geom.minTX) * geom.cell,
-            (geom.maxTZ - tz - rd / 2) * geom.cell, dd, rd);
+            (geom.maxTZ - (zHi + rd / 2)) * geom.cell, dd, rd + widen);
         } else {
           const zHigh = dz > 0 ? tz + dd : tz;
+          const xLo = Math.min(tx, tx + pp);
           pushRect(bucket, layerId, e.prefab,
-            (tx - rw / 2 - geom.minTX) * geom.cell,
-            (geom.maxTZ - zHigh) * geom.cell, rw, dd);
+            (xLo - rw / 2 - geom.minTX) * geom.cell,
+            (geom.maxTZ - zHigh) * geom.cell, rw + widen, dd);
         }
       }
 
