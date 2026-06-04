@@ -211,6 +211,16 @@ export interface PanelRect {
   d: number;
 }
 
+/** A drawn entity's pixel rect + identity, for hover hit-testing. */
+export interface PanelHit {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  prefab: string;
+  layerId: string;
+}
+
 export interface PanelResult {
   layers: Map<string, Map<string, PanelRect>>;
   counts: Map<string, number>;
@@ -219,6 +229,8 @@ export interface PanelResult {
   unknownSample: Set<string>;
   skippedNoTile: number;
   skippedByBand: number;
+  /** Present only when buildPanel is called with collectHits. */
+  hits: PanelHit[] | null;
 }
 
 export interface BuildPanelOptions {
@@ -228,6 +240,8 @@ export interface BuildPanelOptions {
    * rises from rather than being sliced across height bands.
    */
   stairCells?: Set<string>;
+  /** Collect a per-entity hit-rect list (PanelResult.hits) for tooltips. */
+  collectHits?: boolean;
 }
 
 export function buildPanel(

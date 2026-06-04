@@ -492,6 +492,8 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
 
   const filterMode = yFilter ? (yFilter.mode ?? 'center') : null;
   const stairCells = opts.stairCells ?? null;
+  // Per-entity hit rects for hover tooltips (not deduped — keeps prefab names).
+  const hits = opts.collectHits ? [] : null;
 
   for (const e of entities ?? []) {
     if (!e.tilePos) { skippedNoTile++; continue; }
@@ -577,10 +579,13 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
     const sy = (geom.maxTZ - e.tilePos[1] - d / 2) * geom.cell;
     const key = `${sx},${sy},${w},${d}`;
     bucket.set(key, { sx, sy, w, d });
+    if (hits) {
+      hits.push({ x: sx, y: sy, w: w * geom.cell, h: d * geom.cell, prefab: e.prefab, layerId });
+    }
 
     placed++;
     counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
   }
 
-  return { layers, counts, placed, unknown, unknownSample, skippedNoTile, skippedByBand };
+  return { layers, counts, placed, unknown, unknownSample, skippedNoTile, skippedByBand, hits };
 }

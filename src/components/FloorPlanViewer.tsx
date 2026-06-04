@@ -8,9 +8,11 @@ import {
   detectGridPitch,
   detectStairRuns,
   FLOOR_HEIGHT_M,
+  LAYER_ORDER,
   type CategoryLookup,
   type FloorBand,
   type PanelGeom,
+  type PanelHit,
   type PanelLayout,
   type PanelResult,
   type PrefabTable,
@@ -70,6 +72,19 @@ const ALL: Selection = { kind: 'all' };
 // pitch — 10 tiles is the common V Rising castle cell.
 const FALLBACK_GRID_STEP = 10;
 
+// Paint order → "on top" ranking for hover hit-testing (later = higher).
+const LAYER_INDEX = new Map(LAYER_ORDER.map((id, i) => [id, i]));
+
+// Turn a raw prefab name into something readable for the tooltip, e.g.
+// "TM_Castle_Wall_Tier02_Stone" -> "Wall Tier02 Stone".
+function humanizePrefab(name: string): string {
+  return name
+    .replace(/^(TM|BP)_/, '')
+    .replace(/^Castle_/, '')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
 function toYFilter(sel: Selection, bands: FloorBand[]): YFilter | null {
   if (sel.kind === 'all') return null;
   const b = bands[sel.index];
@@ -92,6 +107,12 @@ export default function FloorPlanViewer({
   entryTitle,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Refs the native pointer handler reads so it always sees current values
+  // (the handler is attached once per load and would otherwise close over
+  // stale transform/hidden/hits).
+  const hitsRef = useRef<PanelHit[] | null>(null);
+  const transformRef = useRef<Transform>(IDENTITY_TRANSFORM);
+  const hiddenRef = useRef<Set<string>>(new Set());
   const [data, setData] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>(ALL);
@@ -99,6 +120,8 @@ export default function FloorPlanViewer({
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   // Pan/zoom. panX/panY are in unzoomed content px; zoom in [MIN,MAX].
   const [transform, setTransform] = useState<Transform>(IDENTITY_TRANSFORM);
+  // Hover tooltip: position (relative to the canvas wrap) + text, or null.
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const toggleLayer = (id: string) =>
     setHidden(prev => {
@@ -188,12 +211,17 @@ export default function FloorPlanViewer({
     return buildPanel(
       data.schematic.entities, data.lookup, data.geom,
       toYFilter(selection, data.bands),
-      { stairCells },
+      { stairCells, collectHits: true },
     );
   }, [data, selection, floorRuns]);
 
   // Arrows come from the same runs as the fill, so they always sit on stairs.
   const stairRuns = floorRuns;
+
+  // Keep refs current for the native pointer handler (attached once per load).
+  hitsRef.current = panel?.hits ?? null;
+  transformRef.current = transform;
+  hiddenRef.current = hidden;
 
   // Size the canvas once per loaded schematic (layout doesn't change with the
   // selection — only which rects get painted does).
@@ -230,6 +258,31 @@ export default function FloorPlanViewer({
     const at = (e: PointerEvent | WheelEvent) =>
       clientToCanvas(canvas, e.clientX, e.clientY);
 
+    // Hover hit-test: map the cursor to content coords, find the topmost
+    // visible entity rect under it, and show its prefab name.
+    const updateHover = (e: PointerEvent) => {
+      const hits = hitsRef.current;
+      if (!hits || !hits.length) { setHover(null); return; }
+      const t = transformRef.current;
+      const hiddenSet = hiddenRef.current;
+      const s = at(e);
+      const px = s.x / t.zoom + t.panX;
+      const py = s.y / t.zoom + t.panY;
+      let best: PanelHit | null = null;
+      let bestRank = -1;
+      for (const h of hits) {
+        if (hiddenSet.has(h.layerId)) continue;
+        if (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h) {
+          const rank = LAYER_INDEX.get(h.layerId) ?? -1;
+          if (rank >= bestRank) { bestRank = rank; best = h; }
+        }
+      }
+      if (!best) { setHover(null); return; }
+      const wrap = canvas.parentElement;
+      const rect = (wrap ?? canvas).getBoundingClientRect();
+      setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, text: humanizePrefab(best.prefab) });
+    };
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const c = at(e);
@@ -252,9 +305,12 @@ export default function FloorPlanViewer({
       lastDist = null;
       lastMid = null;
       canvas.style.cursor = 'grabbing';
+      setHover(null); // hide tooltip while dragging
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      // No active drag → treat as hover.
+      if (pointers.size === 0) { updateHover(e); return; }
       if (!pointers.has(e.pointerId)) return;
       const prev = pointers.get(e.pointerId)!;
       const cur = at(e);
@@ -297,12 +353,14 @@ export default function FloorPlanViewer({
     };
 
     const onDblClick = () => setTransform(IDENTITY_TRANSFORM);
+    const onPointerLeave = () => setHover(null);
 
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
+    canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('dblclick', onDblClick);
     canvas.style.cursor = 'grab';
     return () => {
@@ -311,6 +369,7 @@ export default function FloorPlanViewer({
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('dblclick', onDblClick);
     };
   }, [data]);
@@ -391,6 +450,15 @@ export default function FloorPlanViewer({
           role="img"
           aria-label={`Top-down floor plan of ${entryTitle}`}
         />
+        {hover && (
+          <div
+            class="fpv__tooltip"
+            style={`left:${hover.x}px; top:${hover.y}px`}
+            aria-hidden="true"
+          >
+            {hover.text}
+          </div>
+        )}
       </div>
 
       <ul class="fpv__legend" aria-label="Floor plan layers — click to toggle">

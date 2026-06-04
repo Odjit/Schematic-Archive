@@ -69,6 +69,25 @@
 .fpv__canvas-wrap {
   display: flex;
   justify-content: center;
+  position: relative; /* anchor for the hover tooltip */
+}
+
+/* Hover tooltip: prefab name, follows the cursor. Offset up-right of the
+ * pointer and never intercepts events so it can't flicker the hover. */
+.fpv__tooltip {
+  position: absolute;
+  transform: translate(12px, -50%);
+  pointer-events: none;
+  z-index: 2;
+  max-width: 16rem;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: rgba(20, 24, 33, 0.92);
+  color: #f3ede0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .fpv__canvas-wrap canvas {
   display: block;
