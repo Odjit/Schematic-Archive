@@ -52,9 +52,12 @@ Preact, deploys to GitHub Pages.
   - DLC packs: classifier on prefab name tokens, read from the BuildMenuGroup
     names in the dump. Confirmed: `DLC01`/`DraculasRelic`→draculas-relics,
     `DLC02`/`Gloomrot`→sinister-evolution, `ProjectK`→castlevania,
-    `Halloween`→haunted-nights. STILL OPEN (need maintainer): `Strongblade`→?,
-    `Royal`/`RoyalDLC01`→?, and the tokens for Eldest Bloodline + Eternal
-    Dominance. Emit a `pack` per prefab in build-render-prefabs; build-index
+    `Halloween`→haunted-nights. Other tokens seen: `Strongblade`, `Royal`/
+    `RoyalDLC01`. **This list is INCOMPLETE** — next session, enumerate every
+    `*DLC*BuildMenuGroup*` and DLC-suffixed `TM_Castle_*` prefab in the dump for
+    the full token set, then confirm pack labels with the maintainer (don't
+    trust the partial guesses above). Emit a `pack` per prefab in
+    build-render-prefabs; build-index
     unions packs across an entry's entities. (Dump:
     C:\Repositories\Info\Info\EntityStateFiles.)
 - **Slim the submit form** to human-only fields: type, title, summary, author,
