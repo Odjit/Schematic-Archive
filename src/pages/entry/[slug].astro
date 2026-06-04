@@ -3,6 +3,8 @@ import BuildLayout from '../../layouts/BuildLayout.astro';
 import ScreenshotCarousel from '../../components/ScreenshotCarousel.astro';
 import MetaPanel from '../../components/MetaPanel.astro';
 import DownloadButton from '../../components/DownloadButton.astro';
+import FloorPlanViewer from '../../components/FloorPlanViewer';
+import '../../components/floor-plan-viewer.css';
 import index from '../../data/gallery-index.json';
 import { type GalleryEntry } from '../../lib/filters';
 import { withBase } from '../../lib/url';
@@ -20,8 +22,11 @@ const _ = all; // kept for future related-entries logic
 
 const assetBase = withBase(`/entry-assets/${entry.id}`);
 const screenshots = entry.screenshots.map(s => `${assetBase}/${s}`);
-const downloadHref = `${assetBase}/${entry.schematicFile}`;
+// Same URL as downloadHref but referenced from the FloorPlanViewer too.
+const schematicHref = `${assetBase}/${entry.schematicFile}`;
+const downloadHref = schematicHref;
 const floorplanHref = entry.floorplan ? `${assetBase}/${entry.floorplan}` : null;
+const prefabTableHref = withBase('/data/render-prefabs.json');
 const browseHref = withBase('/browse');
 ---
 
@@ -44,12 +49,20 @@ const browseHref = withBase('/browse');
           <section class="entry__floorplan">
             <h2>Floor plan</h2>
             <p class="muted entry__floorplan-note">
-              Auto-generated from the schematic. The top panel shows all floors
-              merged; below it, one panel per floor (5 m height bands). Colors
-              indicate piece type — see the legend at the bottom of the image.
+              Auto-generated from the schematic. Colors indicate piece type —
+              see the legend below. Without JavaScript, the static SVG version
+              with per-floor slices is shown instead.
             </p>
             <div class="entry__floorplan-frame">
-              <img src={floorplanHref} alt={`Top-down floor plan of ${entry.title}`} loading="lazy" />
+              <FloorPlanViewer
+                client:only="preact"
+                schematicUrl={schematicHref}
+                prefabTableUrl={prefabTableHref}
+                entryTitle={entry.title}
+              />
+              <noscript>
+                <img src={floorplanHref} alt={`Top-down floor plan of ${entry.title}`} loading="lazy" />
+              </noscript>
             </div>
           </section>
         )}
