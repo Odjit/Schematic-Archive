@@ -15,6 +15,7 @@ import {
   detectFloors,
   detectGridPitch,
   detectStairRuns,
+  ribbonArms,
   swapsWidthDepth,
   FULL_CELL_CATEGORIES,
 } from '../src/lib/floorplan.mjs';
@@ -36,6 +37,9 @@ const TABLE = {
     StairMid:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Part',  dir: 'North' },
     StairEnd:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'End',   dir: 'North' },
     Pavement:   { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
+    Pavement_T_Section:     { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
+    Pavement_Straight:      { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
+    Pavement_Cross_Section: { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
     Door:       { category: 'door', w: 4, d: 4, y0: -1, y1: 5 },
   },
 };
@@ -155,6 +159,37 @@ test('buildPanel: pavement renders as bridged ribbons (connected, thin)', () => 
   const thin = rects.every(r => r.d === 5);       // never as tall as a full cell
   assert.ok(thin, 'ribbon thickness stays at the collider width');
   assert.ok(rects.some(r => r.w === 10), 'a bridge spans the gap to the neighbour');
+});
+
+test('ribbonArms: arm directions follow shape + rotation', () => {
+  assert.deepEqual(ribbonArms('tee', 0), [[1, 0], [-1, 0], [0, 1]]);
+  assert.deepEqual(ribbonArms('straight', 0), [[0, 1], [0, -1]]);
+  // +90° maps (dx,dz)->(dz,-dx): a N–S straight becomes E–W.
+  assert.deepEqual(ribbonArms('straight', 90), [[1, 0], [-1, 0]]);
+  assert.equal(ribbonArms('cross', 270).length, 4);
+});
+
+test('buildPanel: T-section bridges its 3 arms, never the missing 4th', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  // T at origin (arms +X,-X,+Z at rot0) with a neighbour ONLY on its missing
+  // -Z side, and that neighbour an E–W straight (no +Z arm) — so neither side
+  // bridges. Proves the phantom 4th arm that made T's look like crosses is gone.
+  const entities = [
+    ent('Pavement_T_Section', 0, 0),
+    ent('Pavement_Straight', 0, -10, 0, [0, 90, 0]),
+  ];
+  const rects = [...buildPanel(entities, lookup, geom, null).layers.get('pavement').values()];
+  assert.equal(rects.length, 2); // two base tiles, no bridge across the missing side
+});
+
+test('buildPanel: T-section bridges a neighbour on an allowed arm', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const entities = [
+    ent('Pavement_T_Section', 0, 0),
+    ent('Pavement_Cross_Section', 10, 0), // on the T's +X arm
+  ];
+  const rects = [...buildPanel(entities, lookup, geom, null).layers.get('pavement').values()];
+  assert.ok(rects.some(r => r.w === 10 && r.d === 5), 'a bridge spans the +X arm');
 });
 
 test('buildPanel: doors render as a slim bar, not the 4x4 collider', () => {

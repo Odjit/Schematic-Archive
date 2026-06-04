@@ -93,8 +93,19 @@ export interface PrefabLookupResult {
   kind?: string;
   /** Stairs only: facing direction (North / East / South / West). */
   dir?: string;
+  /** Pavement/carpet only: junction shape for shape-aware ribbon arms. */
+  shape?: 'straight' | 'corner' | 'tee' | 'cross';
   known: boolean;
 }
+
+/** Classify a pavement/carpet prefab name into a junction shape. */
+export function ribbonShape(prefabName: string): 'straight' | 'corner' | 'tee' | 'cross';
+
+/** World-space arm directions ([dx, dz]) for a shape at a Y rotation (deg). */
+export function ribbonArms(
+  shape: string | undefined,
+  rotYDeg?: number,
+): [number, number][];
 
 export interface CategoryLookup {
   lookup(prefabName: string): PrefabLookupResult;

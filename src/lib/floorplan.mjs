@@ -80,6 +80,39 @@ export const FULL_CELL_CATEGORIES = new Set(['floor', 'stairs']);
 // than a full floor tile. See buildPanel.
 export const RIBBON_CATEGORIES = new Set(['pavement', 'carpet']);
 
+// Path-piece arm directions (tile-space [dx, dz]) for each junction shape, in
+// the unrotated frame. Derived empirically from V Rising pavement/carpet
+// placements: a Straight runs N–S, a Corner joins +Z & −X, a T omits −Z, a
+// Cross has all four. Rotation maps (dx, dz) -> (dz, -dx) per +90° (also
+// derived from the data). Reading arms from the piece TYPE (not neighbour
+// positions) avoids T-junctions rendering as crosses when paths jog a tile.
+const SHAPE_ARMS = {
+  straight: [[0, 1], [0, -1]],
+  corner:   [[0, 1], [-1, 0]],
+  tee:      [[1, 0], [-1, 0], [0, 1]],
+  cross:    [[1, 0], [-1, 0], [0, 1], [0, -1]],
+};
+
+/** Classify a pavement/carpet prefab name into a junction shape. */
+export function ribbonShape(prefabName) {
+  if (/Cross[_-]?Section/i.test(prefabName)) return 'cross';
+  if (/T[_-]?Section/i.test(prefabName))     return 'tee';
+  if (/Corner/i.test(prefabName))            return 'corner';
+  if (/Straight/i.test(prefabName))          return 'straight';
+  return 'cross'; // plain/unknown surface tile: allow connecting on any side
+}
+
+/** World-space arm directions ([dx, dz]) for a shape at a Y rotation (deg). */
+export function ribbonArms(shape, rotYDeg = 0) {
+  const base = SHAPE_ARMS[shape] ?? SHAPE_ARMS.cross;
+  const steps = ((Math.round((rotYDeg || 0) / 90) % 4) + 4) % 4;
+  return base.map(([dx, dz]) => {
+    for (let i = 0; i < steps; i++) { [dx, dz] = [dz, -dx]; }
+    // Normalize -0 -> 0 (from negating a zero) for clean, comparable output.
+    return [dx === 0 ? 0 : dx, dz === 0 ? 0 : dz];
+  });
+}
+
 // Category used to detect the grid pitch. Floors are the densest, most
 // regular tiling, so they give the cleanest modal spacing — including stairs
 // here would pollute it with their sparser, irregular runs.
@@ -211,6 +244,9 @@ export function buildCategoryLookup(prefabTable) {
         // else.
         kind: entry?.kind,
         dir:  entry?.dir,
+        // Pavement/carpet junction shape (straight/corner/tee/cross), from the
+        // prefab name — drives shape-aware ribbon arms in buildPanel.
+        shape: RIBBON_CATEGORIES.has(id) ? ribbonShape(prefabName) : undefined,
         known,
       };
     },
@@ -607,31 +643,28 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
     const bucket = layers.get(layerId);
 
     if (geom.pitch && RIBBON_CATEGORIES.has(cls.id)) {
-      // Connected thin ribbon: keep the piece's thin collider footprint, but
-      // bridge the gap to the NEAREST same-category piece so a path/rug reads
-      // as a continuous strip thinner than a full floor tile. Only bridge in
-      // +X/+Z (the neighbour bridges back from its own −side via dedupe).
+      // Shape-aware connected ribbon. Keep the thin collider footprint, then
+      // bridge each of the piece's intrinsic arms — read from its junction
+      // shape (straight/corner/tee/cross) + rotation, NOT from neighbour
+      // positions — to the nearest same-category neighbour in that direction.
       //
-      // Bridging to the nearest neighbour (from one tile out to ~one grid
-      // pitch) — rather than only exactly one pitch away — lets a path connect
-      // through a doorway *or a bare wall opening* (often just a gap, no door
-      // entity), where pavement resumes ~half a cell past the wall. A bridge
-      // that happens to cross a solid wall is harmless: pavement paints under
-      // walls, so it's hidden except at the opening.
+      // Reading arms from the piece TYPE is what stops a T-junction rendering
+      // as a cross: a parallel path one tile away can't add a phantom 4th arm,
+      // because that direction isn't one of the piece's arms. Bridging to the
+      // nearest neighbour (1..pitch+1 tiles, ±1 tile of perpendicular slack)
+      // still connects through a doorway or bare wall opening where the path
+      // resumes ~a cell over and jogged a tile. Pavement paints under walls, so
+      // a bridge crossing a solid wall stays hidden except at the opening.
       const occ = ribbonOcc.get(cls.id);
-      const p = geom.pitch;
-      const maxBridge = p + 1;
+      const maxBridge = geom.pitch + 1;
       const [tx, tz] = e.tilePos;
       const rw = cls.w;
       const rd = cls.d;
-      // Scan along the axis for the nearest neighbour, allowing ±1 tile of
-      // perpendicular slack — paths often step sideways by a tile crossing a
-      // doorway, and that offset still falls within the ribbon's thickness.
-      const span = (axis) => {
+      const nearestArm = (dx, dz) => {
         if (!occ) return 0;
         for (let dd = 1; dd <= maxBridge; dd++) {
           for (const pp of [0, -1, 1]) {
-            const k = axis === 'x' ? `${tx + dd},${tz + pp}` : `${tx + pp},${tz + dd}`;
+            const k = dx !== 0 ? `${tx + dx * dd},${tz + pp}` : `${tx + pp},${tz + dz * dd}`;
             if (occ.has(k)) return dd;
           }
         }
@@ -641,16 +674,22 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       pushRect(bucket, layerId, e.prefab,
         (tx - rw / 2 - geom.minTX) * geom.cell,
         (geom.maxTZ - tz - rd / 2) * geom.cell, rw, rd);
-      // Bridge east (toward +X neighbour): bar of length dd, thickness rd.
-      const dx = span('x');
-      if (dx) pushRect(bucket, layerId, e.prefab,
-        (tx - geom.minTX) * geom.cell,
-        (geom.maxTZ - tz - rd / 2) * geom.cell, dx, rd);
-      // Bridge north (toward +Z neighbour): bar of length dd, thickness rw.
-      const dz = span('z');
-      if (dz) pushRect(bucket, layerId, e.prefab,
-        (tx - rw / 2 - geom.minTX) * geom.cell,
-        (geom.maxTZ - (tz + dz)) * geom.cell, rw, dz);
+      // Arm bridges, only in the directions this piece's shape allows.
+      for (const [dx, dz] of ribbonArms(cls.shape, e.rot?.[1] ?? 0)) {
+        const dd = nearestArm(dx, dz);
+        if (!dd) continue;
+        if (dx !== 0) {
+          const left = dx > 0 ? tx : tx - dd;
+          pushRect(bucket, layerId, e.prefab,
+            (left - geom.minTX) * geom.cell,
+            (geom.maxTZ - tz - rd / 2) * geom.cell, dd, rd);
+        } else {
+          const zHigh = dz > 0 ? tz + dd : tz;
+          pushRect(bucket, layerId, e.prefab,
+            (tx - rw / 2 - geom.minTX) * geom.cell,
+            (geom.maxTZ - zHigh) * geom.cell, rw, dd);
+        }
+      }
 
       placed++;
       counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
