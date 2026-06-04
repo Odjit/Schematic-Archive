@@ -410,6 +410,20 @@ export default function FloorPlanViewer({
   const viewLabel =
     selection.kind === 'all' ? 'All floors' : data.bands[selection.index].label;
 
+  // Zoom button: scale around the viewport center, clamped to bounds.
+  const zoomBy = (factor: number) => setTransform(t => {
+    const { drawW, drawH } = data.layout;
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, t.zoom * factor));
+    const cx = t.panX + drawW / t.zoom / 2;
+    const cy = t.panY + drawH / t.zoom / 2;
+    return clampTransform(
+      { zoom, panX: cx - drawW / zoom / 2, panY: cy - drawH / zoom / 2 },
+      drawW, drawH,
+    );
+  });
+  const resetView = () => setTransform(IDENTITY_TRANSFORM);
+  const zoomedIn = transform.zoom > MIN_ZOOM + 1e-3;
+
   return (
     <div class="fpv">
       <div class="fpv__head">
@@ -450,6 +464,18 @@ export default function FloorPlanViewer({
           role="img"
           aria-label={`Top-down floor plan of ${entryTitle}`}
         />
+        <div class="fpv__zoom" role="group" aria-label="Zoom">
+          <button type="button" class="fpv__zoom-btn" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>+</button>
+          <button
+            type="button"
+            class="fpv__zoom-btn"
+            aria-label="Reset view"
+            title="Reset view"
+            disabled={!zoomedIn}
+            onClick={resetView}
+          >⤢</button>
+          <button type="button" class="fpv__zoom-btn" aria-label="Zoom out" disabled={!zoomedIn} onClick={() => zoomBy(1 / 1.4)}>−</button>
+        </div>
         {hover && (
           <div
             class="fpv__tooltip"

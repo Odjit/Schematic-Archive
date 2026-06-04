@@ -72,6 +72,34 @@
   position: relative; /* anchor for the hover tooltip */
 }
 
+/* Zoom controls: small cluster overlaid top-right of the canvas, so pan/zoom
+ * is discoverable (wheel/drag still work). */
+.fpv__zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 2;
+}
+.fpv__zoom-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid rgba(245, 240, 225, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 24, 33, 0.78);
+  color: #f3ede0;
+  cursor: pointer;
+}
+.fpv__zoom-btn:hover:not(:disabled) { background: rgba(40, 48, 64, 0.9); }
+.fpv__zoom-btn:disabled { opacity: 0.4; cursor: default; }
+
 /* Hover tooltip: prefab name, follows the cursor. Offset up-right of the
  * pointer and never intercepts events so it can't flicker the hover. */
 .fpv__tooltip {
