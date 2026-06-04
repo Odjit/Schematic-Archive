@@ -78,6 +78,8 @@ const CATEGORIES = [
   { id: 'coffin',      label: 'Coffin',       color: '#412a52' },
   { id: 'teleporter',  label: 'Teleporter',   color: '#39b7a7' },
   { id: 'servant',     label: 'Servant / NPC', color: '#e06ec9' },
+  { id: 'carpet',      label: 'Carpet',       color: '#b5485a' },
+  { id: 'pavement',    label: 'Pavement',     color: '#7f8896' },
   { id: 'light',       label: 'Light',        color: '#f0c060' },
   { id: 'plant',       label: 'Plant',        color: '#4f9e4a' },
   { id: 'fence',       label: 'Fence / Chain', color: '#8a7a5a' },
@@ -111,7 +113,13 @@ const RULES = [
   //    otherwise paintings would get bucketed as walls.
   (n)    => /(?:^|_)WallDecor(?:_|$)/.test(n)                && 'wall-decor',
   (n)    => /(?:^|_)CeilingDecor(?:_|$)/.test(n)             && 'wall-decor',
+  // Carpets are FloorDecor_Carpet*; pull them out before the generic
+  // FloorDecor rule so they get their own category + ribbon rendering.
+  (n)    => /Carpet/.test(n)                                 && 'carpet',
   (n)    => /(?:^|_)FloorDecor(?:_|$)/.test(n)               && 'floor-decor',
+  // Pavement / paving = outdoor stone surface, otherwise it lands in the
+  // generic decoration bucket.
+  (n)    => /(?:Pavement|Paving)(?=_|\d|$)/.test(n)          && 'pavement',
 
   // 3) Specific station-shaped things win over the generic workstation
   //    flag — servant coffins, dressers, etc. all set CastleWorkstation

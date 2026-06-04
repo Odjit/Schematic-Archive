@@ -69,6 +69,7 @@ export interface Schematic {
 export const LAYER_ORDER: readonly string[];
 export const UNKNOWN_CATEGORY: 'other';
 export const FULL_CELL_CATEGORIES: ReadonlySet<string>;
+export const RIBBON_CATEGORIES: ReadonlySet<string>;
 export const FALLBACK_W: number;
 export const FALLBACK_D: number;
 export const FALLBACK_Y0: number;

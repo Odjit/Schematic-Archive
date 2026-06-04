@@ -33,6 +33,8 @@ export const LAYER_ORDER = [
   // ground
   'floor',
   'floor-decor',
+  'pavement',
+  'carpet',
   // ambient filler — won't obscure structure
   'decoration',
   'plant',
@@ -70,6 +72,13 @@ export const UNKNOWN_CATEGORY = 'other';
 // lay a solid sheet over the lower floors in the top-down merged view,
 // obscuring the very plan we're trying to show.
 export const FULL_CELL_CATEGORIES = new Set(['floor', 'stairs']);
+
+// Flat surface overlays (pavement paths, carpets) whose collider is smaller
+// than the placement cell. Rendered as "ribbons": each piece keeps its thin
+// collider footprint, but the gap to an adjacent same-category piece is
+// bridged so a path/rug reads as a connected strip that's visibly thinner
+// than a full floor tile. See buildPanel.
+export const RIBBON_CATEGORIES = new Set(['pavement', 'carpet']);
 
 // Category used to detect the grid pitch. Floors are the densest, most
 // regular tiling, so they give the cleanest modal spacing — including stairs
@@ -514,6 +523,46 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
   // Per-entity hit rects for hover tooltips (not deduped — keeps prefab names).
   const hits = opts.collectHits ? [] : null;
 
+  // Does an entity survive the current Y / stairCells filter? Pure (no
+  // counters) so the ribbon pre-pass can reuse it without affecting stats.
+  const passes = (e, cls) => {
+    if (cls.id === 'stairs' && stairCells) {
+      return stairCells.has(`${e.tilePos[0]},${e.tilePos[1]}`);
+    }
+    if (!filterMode) return true;
+    const py = e.pos?.[1] ?? 0;
+    if (filterMode === 'center') {
+      const centerY = py + (cls.y0 + cls.y1) / 2;
+      return centerY >= yFilter.y0 && centerY < yFilter.y1;
+    }
+    const eMin = py + cls.y0;
+    const eMax = py + cls.y1;
+    const isThin = (eMax - eMin) <= SLICE_EDGE_EPS;
+    return isThin
+      ? (eMin >= yFilter.y0 - SLICE_EDGE_EPS && eMin <= yFilter.y1 + SLICE_EDGE_EPS)
+      : (eMax > yFilter.y0 && eMin < yFilter.y1);
+  };
+
+  // Pre-pass: which ribbon cells are visible, per category. Used to bridge a
+  // piece to its same-category neighbours so paths/rugs read as connected.
+  const ribbonOcc = new Map();
+  if (geom.pitch) {
+    for (const e of entities ?? []) {
+      if (!e.tilePos) continue;
+      const cls = lookup.lookup(e.prefab);
+      if (!RIBBON_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
+      let set = ribbonOcc.get(cls.id);
+      if (!set) { set = new Set(); ribbonOcc.set(cls.id, set); }
+      set.add(`${e.tilePos[0]},${e.tilePos[1]}`);
+    }
+  }
+
+  // Emit one rect (tile-unit w/d at pixel sx/sy) into a bucket + hit list.
+  const pushRect = (bucket, layerId, prefab, sx, sy, wTiles, dTiles) => {
+    bucket.set(`${sx},${sy},${wTiles},${dTiles}`, { sx, sy, w: wTiles, d: dTiles });
+    if (hits) hits.push({ x: sx, y: sy, w: wTiles * geom.cell, h: dTiles * geom.cell, prefab, layerId });
+  };
+
   for (const e of entities ?? []) {
     if (!e.tilePos) { skippedNoTile++; continue; }
     const cls = lookup.lookup(e.prefab);
@@ -540,47 +589,53 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
     // band. Right for a continuous slider — entities don't pop in/out at
     // their centers as the slider moves.
     //
-    // Stairs are special: when the caller supplies stairCells, a vertical
-    // flight is shown whole on the floor it rises from (its run's cells),
-    // bypassing the per-piece height slice that would otherwise cut the
-    // staircase in half across two floor bands.
-    if (cls.id === 'stairs' && stairCells) {
-      if (!stairCells.has(`${e.tilePos[0]},${e.tilePos[1]}`)) { skippedByBand++; continue; }
-    } else if (filterMode) {
-      const py = e.pos?.[1] ?? 0;
-      if (filterMode === 'center') {
-        const centerY = py + (cls.y0 + cls.y1) / 2;
-        if (centerY < yFilter.y0 || centerY >= yFilter.y1) { skippedByBand++; continue; }
-      } else {
-        // 'overlap': keep the entity if its vertical extent meets the band.
-        //
-        // Two regimes, because floors are infinitely thin and walls are not:
-        //
-        //   - Tall pieces (walls, stairs, …) use a half-open overlap:
-        //     (eMin, eMax) must intersect [y0, y1]. A wall ending exactly at
-        //     the band floor — extent [5, 10] against band [10, 15] — belongs
-        //     to the floor *below* and is correctly excluded, while a wall
-        //     spanning [10, 15] is kept.
-        //
-        //   - Zero-height pieces (floor tiles: cls.y0 == cls.y1) use an
-        //     inclusive plane-in-band test with SLICE_EDGE_EPS slack, so the
-        //     floor tile at y=10 still appears in a slice starting at 10.
-        //     Without this the slider would show walls hovering over no floor.
-        //     Because the slider window is one FLOOR_HEIGHT_M tall, every
-        //     window contains at least one floor plane, so a floor surface is
-        //     always visible as you drag.
-        const eMin = py + cls.y0;
-        const eMax = py + cls.y1;
-        const isThin = (eMax - eMin) <= SLICE_EDGE_EPS;
-        const inBand = isThin
-          ? (eMin >= yFilter.y0 - SLICE_EDGE_EPS && eMin <= yFilter.y1 + SLICE_EDGE_EPS)
-          : (eMax > yFilter.y0 && eMin < yFilter.y1);
-        if (!inBand) { skippedByBand++; continue; }
-      }
-    }
+    // Y-band / stairCells filtering (see `passes`). The 'center' mode is the
+    // SVG renderer's closed-open band test; 'overlap' is for the slider;
+    // stairCells shows a whole staircase on its origin floor (see the
+    // stairCells option). Pavement/carpet are flat (center ~0.5 m) so they sit
+    // on the ground band like floors.
+    if (!passes(e, cls)) { skippedByBand++; continue; }
 
     const layerId = layers.has(cls.id) ? cls.id : UNKNOWN_CATEGORY;
     const bucket = layers.get(layerId);
+
+    if (geom.pitch && RIBBON_CATEGORIES.has(cls.id)) {
+      // Connected thin ribbon: keep the piece's thin collider footprint, but
+      // bridge the gap to an adjacent same-category piece so a path/rug reads
+      // as a continuous strip thinner than a full floor tile. Only bridge in
+      // +X/+Z (the neighbour bridges back from its own −side via dedupe), and
+      // allow ±1 tile slack since paving isn't perfectly on the pitch.
+      const occ = ribbonOcc.get(cls.id);
+      const p = geom.pitch;
+      const [tx, tz] = e.tilePos;
+      const rw = cls.w;
+      const rd = cls.d;
+      const span = (axis) => {
+        for (const dd of [p, p - 1, p + 1]) {
+          const k = axis === 'x' ? `${tx + dd},${tz}` : `${tx},${tz + dd}`;
+          if (occ && occ.has(k)) return dd;
+        }
+        return 0;
+      };
+      // Base tile.
+      pushRect(bucket, layerId, e.prefab,
+        (tx - rw / 2 - geom.minTX) * geom.cell,
+        (geom.maxTZ - tz - rd / 2) * geom.cell, rw, rd);
+      // Bridge east (toward +X neighbour): bar of length dd, thickness rd.
+      const dx = span('x');
+      if (dx) pushRect(bucket, layerId, e.prefab,
+        (tx - geom.minTX) * geom.cell,
+        (geom.maxTZ - tz - rd / 2) * geom.cell, dx, rd);
+      // Bridge north (toward +Z neighbour): bar of length dd, thickness rw.
+      const dz = span('z');
+      if (dz) pushRect(bucket, layerId, e.prefab,
+        (tx - rw / 2 - geom.minTX) * geom.cell,
+        (geom.maxTZ - (tz + dz)) * geom.cell, rw, dz);
+
+      placed++;
+      counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
+      continue;
+    }
 
     let w = cls.w;
     let d = cls.d;
@@ -596,11 +651,7 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
 
     const sx = (e.tilePos[0] - w / 2 - geom.minTX) * geom.cell;
     const sy = (geom.maxTZ - e.tilePos[1] - d / 2) * geom.cell;
-    const key = `${sx},${sy},${w},${d}`;
-    bucket.set(key, { sx, sy, w, d });
-    if (hits) {
-      hits.push({ x: sx, y: sy, w: w * geom.cell, h: d * geom.cell, prefab: e.prefab, layerId });
-    }
+    pushRect(bucket, layerId, e.prefab, sx, sy, w, d);
 
     placed++;
     counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);

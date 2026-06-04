@@ -22,11 +22,12 @@ import {
 // --- Minimal prefab table shared by the synthetic tests. -------------------
 const TABLE = {
   categories: [
-    { id: 'floor',   label: 'Floor',   color: '#a' },
-    { id: 'wall',    label: 'Wall',    color: '#b' },
-    { id: 'stairs',  label: 'Stairs',  color: '#c' },
-    { id: 'servant', label: 'Servant', color: '#d' },
-    { id: 'other',   label: 'Other',   color: '#0' },
+    { id: 'floor',    label: 'Floor',    color: '#a' },
+    { id: 'wall',     label: 'Wall',     color: '#b' },
+    { id: 'stairs',   label: 'Stairs',   color: '#c' },
+    { id: 'servant',  label: 'Servant',  color: '#d' },
+    { id: 'pavement', label: 'Pavement', color: '#e' },
+    { id: 'other',    label: 'Other',    color: '#0' },
   ],
   prefabs: {
     Floor:      { category: 'floor',  w: 6, d: 6, y0: 0, y1: 0 },
@@ -34,6 +35,7 @@ const TABLE = {
     StairStart: { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Start', dir: 'North' },
     StairMid:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'Part',  dir: 'North' },
     StairEnd:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 5, kind: 'End',   dir: 'North' },
+    Pavement:   { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
   },
 };
 const lookup = buildCategoryLookup(TABLE);
@@ -138,6 +140,20 @@ test('buildPanel: collectHits returns per-entity rects with prefab names', () =>
   assert.ok(panel.hits[0].w > 0 && panel.hits[0].h > 0);
   // No hits collected by default.
   assert.equal(buildPanel([ent('Wall', 2, 2)], lookup, geom, null).hits, null);
+});
+
+test('buildPanel: pavement renders as bridged ribbons (connected, thin)', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  // Two pavement tiles one pitch apart on the same row.
+  const entities = [ent('Pavement', 0, 0), ent('Pavement', 10, 0)];
+  const panel = buildPanel(entities, lookup, geom, null);
+  const rects = [...panel.layers.get('pavement').values()];
+  // Two 5x5 base tiles + one 10x5 bridge between them.
+  assert.equal(rects.length, 3);
+  assert.equal(panel.counts.get('pavement'), 2); // counts pieces, not rects
+  const thin = rects.every(r => r.d === 5);       // never as tall as a full cell
+  assert.ok(thin, 'ribbon thickness stays at the collider width');
+  assert.ok(rects.some(r => r.w === 10), 'a bridge spans the gap to the neighbour');
 });
 
 test('detectStairRuns: straight flight is a 2-point centerline', () => {
