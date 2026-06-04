@@ -1,0 +1,134 @@
+/* FloorPlanViewer (Preact island) — top-down floor plan rendered on Canvas.
+ *
+ * Lives alongside the .tsx and is imported once from the entry detail page.
+ * Mirrors the BEM-ish class pattern used by gallery-browser.css (.gb__*).
+ */
+
+.fpv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Status states (pre-fetch, post-fetch with no data, fetch error). */
+.fpv--loading,
+.fpv--error {
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fpv--error { color: var(--color-danger, #b04545); }
+
+/* Header strip: title + entity count, mirrors the SVG's per-panel header. */
+.fpv__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: 0.9rem;
+}
+.fpv__title  { font-weight: 600; color: var(--color-text); }
+.fpv__sub    { font-size: 0.85rem; }
+
+/* Controls: floor buttons + height slider. */
+.fpv__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.fpv__floors {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fpv__floor-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border, #d6cbb0);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+.fpv__floor-btn:hover { color: var(--color-text); }
+.fpv__floor-btn.is-active {
+  background: var(--color-accent, #b88a3a);
+  border-color: var(--color-accent, #b88a3a);
+  color: #1c160c;
+  font-weight: 600;
+}
+
+/* Canvas wrap — borders the bitmap the same way .entry__floorplan-frame
+ * bordered the static SVG. We sit *inside* that frame, so just provide a
+ * centering box that scales the canvas down on narrow viewports. */
+.fpv__canvas-wrap {
+  display: flex;
+  justify-content: center;
+}
+.fpv__canvas-wrap canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  /* The canvas's intrinsic size is set in floorplan-canvas.ts to drawW x
+   * drawH CSS pixels (with a DPR-scaled backing store). max-width here lets
+   * narrow containers shrink the bitmap; aspect ratio is preserved via the
+   * canvas element's own width/height attributes. */
+}
+
+/* Legend — clickable color chips + counts; click toggles a layer. Wraps on
+ * narrow viewports. */
+.fpv__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  font-size: 0.8rem;
+}
+.fpv__legend > li { display: inline-flex; }
+.fpv__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.fpv__legend-item:hover { border-color: var(--color-border, #d6cbb0); }
+/* Hidden layer: dim the row and gray the swatch so its off-state reads. */
+.fpv__legend-item.is-hidden { opacity: 0.4; }
+.fpv__legend-item.is-hidden .fpv__legend-label { text-decoration: line-through; }
+.fpv__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex: none;
+}
+.fpv__legend-label { color: var(--color-text); }
+.fpv__legend-count { font-size: 0.75rem; }
+
+/* Caption explaining the stair arrows (shown only when stairs have arrows). */
+.fpv__note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.78rem;
+}
+.fpv__note-arrow {
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
