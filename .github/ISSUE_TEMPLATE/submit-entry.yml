@@ -85,12 +85,6 @@ body:
     validations:
       required: true
 
-  - type: markdown
-    attributes:
-      value: |
-        **DLC packs, object count, version, and placement are detected
-        automatically** from your schematic — no need to enter them here.
-
   - type: checkboxes
     id: themes
     attributes:
