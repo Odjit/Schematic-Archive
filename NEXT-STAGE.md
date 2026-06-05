@@ -49,21 +49,42 @@ Preact, deploys to GitHub Pages.
   - `placement`: **territory-bound** if the file has `territoryIndex` (these
     have no `boundingBox`/`location`) — confirmed against a sample; otherwise
     **placeable**. Coord-locked-vs-anywhere is a softer call, TBD.
-  - DLC packs: classifier on prefab name tokens, read from the BuildMenuGroup
-    names in the dump. Confirmed: `DLC01`/`DraculasRelic`→draculas-relics,
-    `DLC02`/`Gloomrot`→sinister-evolution, `ProjectK`→castlevania,
-    `Halloween`→haunted-nights. Other tokens seen: `Strongblade`, `Royal`/
-    `RoyalDLC01`. **This list is INCOMPLETE** — next session, enumerate every
-    `*DLC*BuildMenuGroup*` and DLC-suffixed `TM_Castle_*` prefab in the dump for
-    the full token set, then confirm pack labels with the maintainer (don't
-    trust the partial guesses above). Emit a `pack` per prefab in
-    build-render-prefabs; build-index
-    unions packs across an entry's entities. (Dump:
-    C:\Repositories\Info\Info\EntityStateFiles.)
+  - **DLC packs — DONE** (schemaVersion 5): maintainer pasted the game's
+    authoritative `DlcTileModelsByContentFlag` table verbatim (186 prefab
+    names across 6 packs); embedded as `DLC_TILE_MODELS` in
+    `scripts/build-render-prefabs.mjs`. Each prefab now carries a `pack`
+    slug (one of the `DLCS` slugs in `src/site-config.ts`).
+    `scripts/build-index.mjs` walks each schematic's entities, unions
+    detected packs, and merges with `manifest.dlc` (manual entries kept —
+    they cover design intent and equippables that aren't placed entities).
+    Build coverage: all 186 listed names resolved in the current dump.
+    Equippables (`dlcBoundItems` in the maintainer's paste) and the items-
+    only `GiveAway_Razer01` pack are out of scope — schematics record
+    placed castle props, not what the player is wearing.
+    **Footgun for refreshes**: C# `Prefabs.*` constants substitute `_` for
+    `-` in carpet `Cross-Section`/`T-Section` names. Anything verbatim-
+    pasted from the C# constants table needs the underscore→hyphen swap;
+    a guarded loop in build-render-prefabs already warns on any missing
+    name when the dump is refreshed.
+  - **Stored-items note — DONE**: `deriveStoredItems` in
+    `scripts/build-index.mjs` scans each entity's `InventoryBuffer`
+    component (chests back theirs on a separate `External_Inventory`
+    entity; refineries/servant coffins carry their own). A filled slot is
+    `Amount > 0` — empty slots are `{ ItemType: "", Amount: 0 }`. Emits
+    `storedItems: { inventories, stacks }` on the gallery index only when
+    something is stored (omitted otherwise), typed in `src/lib/filters.ts`,
+    surfaced as a "Ships with stored items" callout on the entry page.
+    Confirmed against the sample set: humble-outpost has 117 *empty*
+    inventories → no note; emerald-garden has 29 filled → note. Not summing
+    `Amount` on purpose (fuel/ingredient stacks balloon to 100k+ and aren't
+    a useful headline number). Could become a filter facet later.
 - **Slim the submit form** to human-only fields: type, title, summary, author,
   category, themes, modes, schematic file, screenshots, notes. Everything above
   is derived. Update `manifest.schema.json` (make derived fields optional; add
   `type` + `placement` enums) and `site-config.ts` (add the Modular Room
   category set + the placement facet).
-- Research done — territory rule and DLC tokens both confirmed; what's left is
-  the implementation (build-index extraction, schema, site-config, slim form).
+- Research done — territory rule and DLC tokens both confirmed; DLC
+  derivation is live. What's left for the form redesign: `objectCount`,
+  `footprint`, `version`, `placement` derivation (one more pass over the
+  parsed schematic — slot into the existing `processSchematic` in
+  `scripts/build-index.mjs`), then schema + site-config + slim form.

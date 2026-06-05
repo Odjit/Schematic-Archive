@@ -74,6 +74,21 @@ const browseHref = withBase('/browse');
               Wired up as a future improvement. For now we show the summary. */}
         </section>
 
+        {entry.storedItems && (
+          <div class="callout">
+            <strong>Ships with stored items</strong>
+            <p>
+              This schematic includes{' '}
+              {entry.storedItems.stacks.toLocaleString()} filled inventory{' '}
+              {entry.storedItems.stacks === 1 ? 'slot' : 'slots'} across{' '}
+              {entry.storedItems.inventories.toLocaleString()}{' '}
+              {entry.storedItems.inventories === 1 ? 'container' : 'containers'}.
+              Pasting the build may place these items — clear them first if you
+              only want the structure.
+            </p>
+          </div>
+        )}
+
         {entry.warnings && (
           <div class="callout">
             <strong>Notes from the author</strong>

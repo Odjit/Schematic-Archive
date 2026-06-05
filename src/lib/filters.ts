@@ -49,6 +49,14 @@ export interface GalleryEntry {
    */
   floorplan?: string;
   warnings?: string | null;
+  /**
+   * Present only when the schematic ships containers with items still in
+   * them (auto-detected from `InventoryBuffer` slots at build time). Absent
+   * means every container is empty — the common, clean-export case.
+   *   inventories — distinct non-empty containers/stations
+   *   stacks      — total filled slots across them
+   */
+  storedItems?: { inventories: number; stacks: number };
 }
 
 export type Tab = 'featured' | 'recent' | 'all';

@@ -87,36 +87,104 @@ async function copyAssetsFor(folder, manifest) {
     await copyFile(src, dest);
   }
 
-  // Auto-render a top-down floor plan SVG from the schematic if we have one
-  // and the prefab table is available. Failure is non-fatal: a build with a
-  // text-placeholder schematic just won't get a floorplan. The boolean is
-  // mutated onto the manifest so shapeForIndex can advertise it.
-  manifest.__hasFloorplan = await maybeRenderFloorplan(folder, manifest, outDir);
+  // Parse the schematic once and derive everything we read from it
+  // (floor plan, DLC packs, …) in a single pass. Failures are non-fatal:
+  // a build with a text-placeholder schematic just skips derivation. The
+  // derived fields are mutated onto the manifest so shapeForIndex can pick
+  // them up without threading them through every call site.
+  await processSchematic(folder, manifest, outDir);
 }
 
 /**
- * Returns true when a floor plan SVG was written, false otherwise.
- * The caller uses the return value to decide whether to advertise
- * `floorplan` on the gallery-index entry.
+ * One read of the .schematic, multiple derivations.
+ *
+ * Mutates these fields onto `manifest`:
+ *   __hasFloorplan   — boolean, did we successfully write floorplan.svg
+ *   __derivedPacks   — string[] of DLC slugs from the schematic's prefabs
+ *                      (unioned with manifest.dlc downstream in shapeForIndex)
+ *   __storedItems    — { inventories, stacks } | null — non-empty container
+ *                      contents shipped inside the schematic (null if none)
+ *
+ * The floor plan needs the prefab table; the other derivations don't, so we
+ * still run them when the table is missing.
  */
-async function maybeRenderFloorplan(folder, manifest, outDir) {
-  if (!manifest.schematicFile || !prefabTable) return false;
+async function processSchematic(folder, manifest, outDir) {
+  manifest.__hasFloorplan = false;
+  manifest.__derivedPacks = [];
+  manifest.__storedItems = null;
+
+  if (!manifest.schematicFile) return;
   const schematicPath = join(folder, manifest.schematicFile);
-  if (!existsSync(schematicPath)) return false;
+  if (!existsSync(schematicPath)) return;
 
   let schematic;
   try {
     const raw = await readFile(schematicPath, 'utf8');
     schematic = JSON.parse(raw);
   } catch (e) {
-    warn(`${manifest.id}: schematic isn't valid JSON, skipping floor plan (${e.message.slice(0, 80)})`);
-    return false;
+    warn(`${manifest.id}: schematic isn't valid JSON, skipping derivation (${e.message.slice(0, 80)})`);
+    return;
   }
   if (!Array.isArray(schematic.entities)) {
     // Placeholder text files etc. — silently skip.
-    return false;
+    return;
   }
 
+  manifest.__storedItems = deriveStoredItems(schematic);
+  if (manifest.__storedItems) {
+    const { inventories, stacks } = manifest.__storedItems;
+    log(`stored items ${manifest.id}: ${stacks} stack(s) across ${inventories} inventor${inventories === 1 ? 'y' : 'ies'}`);
+  }
+
+  if (prefabTable) {
+    manifest.__derivedPacks = derivePacks(schematic, prefabTable);
+    manifest.__hasFloorplan = await writeFloorplan(schematic, manifest, outDir);
+  }
+}
+
+/**
+ * Walk the schematic's entities and collect the unique set of `pack` slugs
+ * advertised by the prefab table. Returns an array sorted for stable output.
+ */
+function derivePacks(schematic, table) {
+  const packs = new Set();
+  for (const ent of schematic.entities) {
+    const pack = ent.prefab && table.prefabs[ent.prefab]?.pack;
+    if (pack) packs.add(pack);
+  }
+  return [...packs].sort();
+}
+
+/**
+ * Detect container contents the builder left inside the schematic.
+ *
+ * V Rising stores inventory contents in an `InventoryBuffer` component — a
+ * fixed-length slot list of `{ ItemType, Amount }`. Empty slots are
+ * `{ ItemType: "", Amount: 0 }`, so a filled slot is simply `Amount > 0`.
+ * (Chests back their slots with a separate `External_Inventory` entity;
+ * refinement stations and servant coffins carry their own buffers. We don't
+ * care which kind it is — any buffer with a filled slot counts.)
+ *
+ * Returns { inventories, stacks } when at least one slot is filled, else null:
+ *   inventories — distinct buffers that hold ≥1 filled slot
+ *   stacks      — total filled slots across them
+ * Deliberately not summing Amount: stack sizes balloon into the hundreds of
+ * thousands (fuel, ingredients) and aren't a useful "note" number.
+ */
+function deriveStoredItems(schematic) {
+  let inventories = 0;
+  let stacks = 0;
+  for (const ent of schematic.entities) {
+    for (const c of ent.componentData ?? []) {
+      if (c.component !== 'InventoryBuffer' || !Array.isArray(c.data)) continue;
+      const filled = c.data.reduce((n, row) => n + (row.Amount > 0 ? 1 : 0), 0);
+      if (filled > 0) { inventories++; stacks += filled; }
+    }
+  }
+  return stacks > 0 ? { inventories, stacks } : null;
+}
+
+async function writeFloorplan(schematic, manifest, outDir) {
   try {
     const { svg, stats } = renderFloorplan(schematic, prefabTable);
     const outPath = join(outDir, 'floorplan.svg');
@@ -133,6 +201,12 @@ async function maybeRenderFloorplan(folder, manifest, outDir) {
 }
 
 function shapeForIndex(m) {
+  // dlc = union(manifest.dlc, packs auto-detected from the schematic).
+  // Manual entries are preserved on purpose: they cover things the schematic
+  // can't reflect (design intent, equippables shown in screenshots, etc.).
+  // The form will eventually drop this field per the NEXT-STAGE plan; until
+  // then both inputs feed in.
+  const dlc = [...new Set([...(m.dlc ?? []), ...(m.__derivedPacks ?? [])])].sort();
   return {
     id: m.id,
     title: m.title,
@@ -142,7 +216,7 @@ function shapeForIndex(m) {
     tier: m.tier,
     footprint: m.footprint,
     modes: m.modes ?? [],
-    dlc: m.dlc ?? [],
+    dlc,
     themes: m.themes ?? [],
     objectCount: m.objectCount,
     gameVersion: m.gameVersion,
@@ -155,6 +229,9 @@ function shapeForIndex(m) {
     featured: !!m.featured,
     tags: m.tags ?? [],
     warnings: m.warnings ?? null,
+    // Only present when the schematic ships non-empty containers; omitted
+    // otherwise so the gallery can treat its absence as "nothing stored".
+    storedItems: m.__storedItems ?? undefined,
     // Only advertise the floor plan when the build actually wrote one.
     floorplan: m.__hasFloorplan ? 'floorplan.svg' : undefined
   };

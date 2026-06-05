@@ -47,6 +47,17 @@
  *     renderer prefers over decoding the schematic entity's rotation
  *     quaternion-as-Euler.
  *
+ * Schema-v5 changes:
+ *   - Added `pack` per prefab from the authoritative
+ *     `DlcTileModelsByContentFlag` table the game maintains internally
+ *     (see DLC_TILE_MODELS below). Lets build-index union an entry's
+ *     DLC requirements straight from the schematic — no manifest input.
+ *     Equippables (cloaks/helmets/armor in `dlcBoundItems`) are out of
+ *     scope here: schematics record placed castle props, not what the
+ *     player is wearing, so the items don't appear in the dump anyway.
+ *     The GiveAway_Razer01 pack contains items only — no tile models —
+ *     so it has no entry below.
+ *
  * Run via:  pnpm run build-render-prefabs
  */
 
@@ -90,6 +101,247 @@ const CATEGORIES = [
 ];
 
 const CATEGORY_IDS = new Set(CATEGORIES.map(c => c.id));
+
+// ---------------------------------------------------------------------------
+// DLC tile-model table — copied verbatim from the game's
+// DlcTileModelsByContentFlag (each UserContentFlags bucket -> the build-menu
+// prefabs it unlocks). Keys here are the site's DLCS slugs from
+// src/site-config.ts; the comment after each key names the in-game flag for
+// the next person diffing this against a fresh dump.
+//
+// Source of truth: the message-(11) txt the maintainer pasted. When V Rising
+// ships a new DLC, append a new entry; reorders are safe (the build only
+// needs name -> slug).
+//
+// Note on hyphens: the maintainer's paste uses underscored carpet variants
+// (`Cross_Section`, `T_Section`) because those are C# `Prefabs.*` constant
+// names. The actual in-game prefab names — what we see in the raw dump and
+// in schematic entities — are hyphenated (`Cross-Section`, `T-Section`).
+// Anything verbatim-pasted from C# code that uses those tokens needs the
+// underscore→hyphen swap before going into this table.
+// ---------------------------------------------------------------------------
+const DLC_TILE_MODELS = {
+  // UserContentFlags.DLC_DraculasRelics_EA
+  'draculas-relics': [
+    'TM_Castle_Floor_Foundation_Stone01_DLCVariant01',
+    'TM_Castle_FloorDecor_CarpetDLC01_Corner',
+    'TM_Castle_FloorDecor_CarpetDLC01_Cross-Section',
+    'TM_Castle_FloorDecor_CarpetDLC01_End',
+    'TM_Castle_FloorDecor_CarpetDLC01_Straight',
+    'TM_Castle_FloorDecor_CarpetDLC01_T-Section',
+    'TM_Castle_ObjectDecor_Gothic_Brazier04_Orange_DLC',
+    'TM_Castle_Throne_01DLC01Variant',
+    'TM_Castle_Wall_Door_Wood_Tier02_DLC01Variant_ServantLock',
+    'TM_Castle_Wall_Door_Wood_Tier02_DLC01Variant_Standard',
+    'TM_Castle_WallDecor_Gothic_Window01_RoyalDLC01',
+    'TM_Castle_WallDecor_Gothic_Window01_RoyalDLC02',
+    'TM_SpecialStation_StoneCoffinDLC01Variant',
+  ],
+  // UserContentFlags.DLC_FoundersPack_EA
+  'eldest-bloodline': [
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01DuoGargoyle01',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle01',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle02',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle03',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle04',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle05',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle06',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle07',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLC01Gargoyle08',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01DuoGargoyle01',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle01',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle02',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle03',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle04',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle05',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle06',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle07',
+    'TM_Castle_ObjectDecor_Lavish_Statue_DLC01Gargoyle08',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01DuoGargoyle01',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle01',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle02',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle03',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle04',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle05',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle06',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle07',
+    'TM_Castle_ObjectDecor_Simple_Statue_DLC01Gargoyle08',
+    'TM_Castle_PillarDecor_HangingGargoyle01',
+    'TM_Castle_PillarDecor_HangingGargoyle02',
+    'TM_Castle_PillarDecor_HangingGargoyle03',
+    'TM_Castle_PillarDecor_HangingGargoyle04',
+    'TM_Castle_PillarDecor_HangingGargoyle05',
+    'TM_Castle_PillarDecor_HangingGargoyle06',
+  ],
+  // UserContentFlags.Halloween2022
+  'haunted-nights': [
+    'TM_Castle_FloorDecor_CarpetHalloween01_Corner',
+    'TM_Castle_FloorDecor_CarpetHalloween01_Cross-Section',
+    'TM_Castle_FloorDecor_CarpetHalloween01_End',
+    'TM_Castle_FloorDecor_CarpetHalloween01_Straight',
+    'TM_Castle_FloorDecor_CarpetHalloween01_T-Section',
+    'TM_Castle_ObjectDecor_FlyingChandelier_Halloween01',
+    'TM_Castle_ObjectDecor_Halloween01_Brazier01_Orange',
+    'TM_Castle_ObjectDecor_Halloween01_Brazier02_Orange',
+    'TM_Castle_ObjectDecor_Halloween01_Brazier03_Orange',
+    'TM_Castle_ObjectDecor_Halloween01_Brazier04_Orange',
+    'TM_Castle_PillarDecor_Gothic_HalloweenLantern01_Orange',
+    'TM_Castle_PillarDecor_Halloween01',
+    'TM_Castle_WallDecor_Gothic_Window01_Halloween01',
+    'TM_Castle_WallDecor_WallCurtain_Halloween01',
+    'TM_Castle_WallDecor_WindowCurtains_Halloween01',
+    'TM_Customization_Mirror_Halloween_01',
+    'TM_SpecialStation_WoodenCoffinHalloween01Variant',
+    'TM_Stash_Chest_Wood_General_Halloween01Variant',
+  ],
+  // UserContentFlags.DLC_Gloomrot
+  'sinister-evolution': [
+    'TM_Castle_Floor_Foundation_Stone01_DLCVariant02',
+    'TM_Castle_FloorDecor_CarpetGloomrot01_Corner',
+    'TM_Castle_FloorDecor_CarpetGloomrot01_Cross-Section',
+    'TM_Castle_FloorDecor_CarpetGloomrot01_End',
+    'TM_Castle_FloorDecor_CarpetGloomrot01_Straight',
+    'TM_Castle_FloorDecor_CarpetGloomrot01_T-Section',
+    'TM_Castle_ObjectDecor_Gloomrot01_Brazier01_Green',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLCGloomrot_Female',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLCGloomrot_Male',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLCGloomrot_Vat01',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLCGloomrot_Vat02',
+    'TM_Castle_ObjectDecor_Gothic_Statue_DLCGloomrot_Vat03',
+    'TM_Castle_PillarDecor_Gothic_GloomrotLantern01_Green',
+    'TM_Castle_Throne_01DLC02Variant',
+    'TM_Castle_Wall_Door_Wood_Tier02_DLC02Variant_ServantLock',
+    'TM_Castle_Wall_Door_Wood_Tier02_DLC02Variant_Standard',
+    'TM_Castle_WallDecor_Gothic_Window01_GloomrotDLC01',
+    'TM_SpecialStation_StoneCoffinDLC02Variant',
+  ],
+  // UserContentFlags.DLC_ProjectK
+  'castlevania': [
+    'TM_Castle_Fence_ProjectK01',
+    'TM_Castle_Fence_ProjectK01_Gate',
+    'TM_Castle_Floor_Foundation_Stone01_DLCProjectK',
+    'TM_Castle_FloorDecor_CarpetProjectK01_Corner',
+    'TM_Castle_FloorDecor_CarpetProjectK01_Cross-Section',
+    'TM_Castle_FloorDecor_CarpetProjectK01_End',
+    'TM_Castle_FloorDecor_CarpetProjectK01_Straight',
+    'TM_Castle_FloorDecor_CarpetProjectK01_T-Section',
+    'TM_Castle_ObjectDecor_GardenFountain_ProjectK01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_AngelStatue01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_BonePillarStatue01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_FemaleStatue01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_FemaleStatue02',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_GargoyleStatue01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_GargoyleStatue02',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_MaleStatue01',
+    'TM_Castle_ObjectDecor_Statue_ProjectK_MaleStatue02',
+    'TM_Castle_PillarDecor_DLC_ProjectK_Torch01_Dyable',
+    'TM_Castle_PillarDecor_DLC_ProjectK_Torch01_Orange',
+    'TM_Castle_Throne_01_ProjectK',
+    'TM_Castle_Wall_Door_Wood_Tier02_ProjectK01Variant_ServantLock',
+    'TM_Castle_Wall_Door_Wood_Tier02_ProjectK01Variant_Standard',
+    'TM_Castle_Wall_Door_Wood_Tier02_ProjectK02Variant_ServantLock',
+    'TM_Castle_Wall_Door_Wood_Tier02_ProjectK02Variant_Standard',
+    'TM_Castle_WallDecor_Gothic_Window01_ProjectK01',
+    'TM_Castle_WallDecor_Gothic_Window01_ProjectK02',
+    'TM_Castle_WallDecor_Gothic_Window01_ProjectK03',
+    'TM_Castle_WallDecor_ProjectK_Painting_01',
+    'TM_Castle_WallDecor_ProjectK_Painting_02',
+    'TM_Castle_WallDecor_ProjectK_Painting_03',
+    'TM_Castle_WallDecor_ProjectK_Painting_04',
+    'TM_Castle_WallDecor_ProjectK_Painting_05',
+    'TM_Castle_WallDecor_ProjectK_Painting_06',
+    'TM_SpecialStation_StoneCoffinProjectKVariant',
+  ],
+  // UserContentFlags.DLC_Oakveil
+  'eternal-dominance': [
+    'TM_Castle_Floor_Foundation_Stone01_DLCStrongblade01',
+    'TM_Castle_Floor_Treasury01_DLCStrongblade01',
+    'TM_Castle_FloorDecor_CarpetStrongbladeDLC_Corner',
+    'TM_Castle_FloorDecor_CarpetStrongbladeDLC_Cross-Section',
+    'TM_Castle_FloorDecor_CarpetStrongbladeDLC_End',
+    'TM_Castle_FloorDecor_CarpetStrongbladeDLC_Straight',
+    'TM_Castle_FloorDecor_CarpetStrongbladeDLC_T-Section',
+    'TM_Castle_FloorDecor_StrongbladeDLC_Carpet01_Dyable',
+    'TM_Castle_FloorDecor_StrongbladeDLC_Carpet02_Dyable',
+    'TM_Castle_FloorDecor_StrongbladeDLC_Carpet03_Dyable',
+    'TM_Castle_FloorDecor_StrongbladeDLC_Carpet04_Dyable',
+    'TM_Castle_FloorDecor_StrongbladeDLC_Carpet05_Dyable',
+    'TM_Castle_Module_Child_RectangularTable_10x6_StrongbladeDLC01',
+    'TM_Castle_Module_Child_RectangularTable_10x6_StrongbladeDLC02',
+    'TM_Castle_Module_Child_RectangularTable_10x6_StrongbladeDLC03',
+    'TM_Castle_Module_Child_RectangularTable_3x6_StrongbladeDLC01',
+    'TM_Castle_Module_Child_RectangularTable_3x6_StrongbladeDLC02',
+    'TM_Castle_Module_Child_RectangularTable_3x6_StrongbladeDLC03',
+    'TM_Castle_Module_Child_RoundTable_3x3_StrongbladeDLC01',
+    'TM_Castle_Module_Child_RoundTable_3x3_StrongbladeDLC02',
+    'TM_Castle_Module_Child_RoundTable_3x3_StrongbladeDLC03',
+    'TM_Castle_Module_Child_RoundTable_3x3_StrongbladeDLC04',
+    'TM_Castle_Module_Child_RoundTable_3x3_StrongbladeDLC05',
+    'TM_Castle_Module_Child_RoundTable_6x6_StrongbladeDLC01',
+    'TM_Castle_Module_Child_RoundTable_6x6_StrongbladeDLC02',
+    'TM_Castle_Module_Child_RoundTable_6x6_StrongbladeDLC03',
+    'TM_Castle_Module_Parent_RectangularTable_10x6_StrongbladeDLC_01',
+    'TM_Castle_Module_Parent_RectangularTable_10x6_StrongbladeDLC_02',
+    'TM_Castle_Module_Parent_RectangularTable_3x6_StrongbladeDLC_01',
+    'TM_Castle_Module_Parent_RoundTable_3x3_StrongbladeDLC_01',
+    'TM_Castle_Module_Parent_RoundTable_6x6_StrongbladeDLC_01',
+    'TM_Castle_ObjectDecor_Chair_StrongbladeDLC01',
+    'TM_Castle_ObjectDecor_Chair_StrongbladeDLC02',
+    'TM_Castle_ObjectDecor_Chair_StrongbladeDLC03',
+    'TM_Castle_ObjectDecor_Chair_StrongbladeDLC04',
+    'TM_Castle_ObjectDecor_Pool_StrongbladeDLC01',
+    'TM_Castle_ObjectDecor_Pool_StrongbladeDLC02',
+    'TM_Castle_ObjectDecor_Sofa_StrongbladeDLC01',
+    'TM_Castle_ObjectDecor_Sofa_StrongbladeDLC02',
+    'TM_Castle_ObjectDecor_Statue_StrongbladeDLC_Female01',
+    'TM_Castle_ObjectDecor_Statue_StrongbladeDLC_Female02',
+    'TM_Castle_ObjectDecor_Statue_StrongbladeDLC_Male01',
+    'TM_Castle_ObjectDecor_StrongbladeDLC_StandingLamp01_Dyable',
+    'TM_Castle_ObjectDecor_Table_10x6_StrongbladeDLC_01_Deprecated',
+    'TM_Castle_ObjectDecor_Table_10x6_StrongbladeDLC_02_Deprecated',
+    'TM_Castle_ObjectDecor_Table_6x6_StrongbladeDLC_01_Deprecated',
+    'TM_Castle_ObjectDecor_WalkableFurnishing_StrongbladeDLC_Pillows01',
+    'TM_Castle_ObjectDecor_WalkableFurnishing_StrongbladeDLC_Pillows02',
+    'TM_Castle_ObjectDecor_WalkableFurnishing_StrongbladeDLC_Pillows03',
+    'TM_Castle_PillarDecor_StrongbladeDLC_Lantern01_Dyable',
+    'TM_Castle_PillarDecor_StrongbladeDLC_Lantern02_Dyable',
+    'TM_Castle_Throne_01_StrongbladeDLC',
+    'TM_Castle_Wall_Door_Wood_Tier02_StrongbladeDLC01Variant_ServantLock',
+    'TM_Castle_Wall_Door_Wood_Tier02_StrongbladeDLC01Variant_Standard',
+    'TM_Castle_WallDecor_Gothic_Window01_StrongbladeDLC01',
+    'TM_Castle_WallDecor_Misc_StrongbladeDLC_WallFountain01',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_01',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_02',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_03',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_04',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_05',
+    'TM_Castle_WallDecor_StrongbladeDLC01_Painting_06',
+    'TM_Castle_WallDecor_WallCurtain_StrongbladeDLC01',
+    'TM_Castle_WallDecor_WindowCurtains_StrongbladeDLC01',
+    'TM_Castle_WallDecor_WindowCurtains_StrongbladeDLC02',
+    'TM_Castle_WallDecor_WindowCurtains_StrongbladeDLC03',
+    'TM_SpecialStation_PrisonCell_StrongbladeDLC',
+    'TM_SpecialStation_ServantCoffin_StrongbladeDLC',
+    'TM_SpecialStation_StoneCoffinStrongbladeDLC01Variant',
+    'TM_Workstation_Waypoint_Castle_StrongbladeDLC',
+  ],
+};
+
+// name -> pack-slug. Built once, looked up per prefab during classification.
+// Guard against any future maintainer pasting the same name into two packs
+// (every DLC piece must belong to exactly one).
+const PACK_BY_NAME = (() => {
+  const m = new Map();
+  for (const [slug, names] of Object.entries(DLC_TILE_MODELS)) {
+    for (const name of names) {
+      if (m.has(name) && m.get(name) !== slug) {
+        throw new Error(`DLC_TILE_MODELS: "${name}" appears in both "${m.get(name)}" and "${slug}"`);
+      }
+      m.set(name, slug);
+    }
+  }
+  return m;
+})();
 
 // ---------------------------------------------------------------------------
 // Classifier — name-first because the prefab archetype lacks the runtime
@@ -217,6 +469,7 @@ async function main() {
 
   const prefabs = {};
   const bucketCounts = Object.fromEntries(CATEGORIES.map(c => [c.id, 0]));
+  const packCounts = Object.fromEntries(Object.keys(DLC_TILE_MODELS).map(s => [s, 0]));
   let dupes = 0;
   let withFootprint = 0;
   let withoutFootprint = 0;
@@ -237,12 +490,27 @@ async function main() {
     }
     if (entry.stairsDirection) slim.dir  = entry.stairsDirection;
     if (entry.stairsType)      slim.kind = entry.stairsType;
+    const pack = PACK_BY_NAME.get(entry.name);
+    if (pack) {
+      slim.pack = pack;
+      packCounts[pack]++;
+    }
     prefabs[entry.name] = slim;
     bucketCounts[category]++;
   }
 
+  // Surface any DLC prefab that's listed in DLC_TILE_MODELS but absent from
+  // the raw dump — usually means the game renamed/removed it and the table
+  // here needs an update.
+  const missingDlcNames = [];
+  for (const [slug, names] of Object.entries(DLC_TILE_MODELS)) {
+    for (const name of names) {
+      if (!prefabs[name]) missingDlcNames.push(`${slug}: ${name}`);
+    }
+  }
+
   const slim = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     generatedAt: new Date().toISOString(),
     sourceGeneratedAt: raw.generatedAt,
     prefabCount: Object.keys(prefabs).length,
@@ -263,6 +531,14 @@ async function main() {
   for (const c of CATEGORIES) {
     const n = bucketCounts[c.id];
     if (n > 0) console.log(`  ${c.id.padEnd(12)} ${String(n).padStart(5)}`);
+  }
+  log('DLC pack distribution:');
+  for (const [slug, expected] of Object.entries(DLC_TILE_MODELS)) {
+    console.log(`  ${slug.padEnd(20)} ${String(packCounts[slug]).padStart(3)} / ${expected.length}`);
+  }
+  if (missingDlcNames.length) {
+    warn(`${missingDlcNames.length} DLC prefab name(s) listed in DLC_TILE_MODELS but missing from the raw dump:`);
+    for (const m of missingDlcNames) console.warn(`    ${m}`);
   }
 }
 
