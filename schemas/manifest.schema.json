@@ -36,6 +36,12 @@
         "github": { "type": "string", "maxLength": 60 }
       }
     },
+    "type": {
+      "type": "string",
+      "enum": ["build", "modular-room"],
+      "default": "build",
+      "description": "Optional. Top-level taxonomy. Defaults to 'build'. 'modular-room' is a Catacombs dungeon room. The valid 'category' values depend on this (see allOf below)."
+    },
     "category": {
       "type": "string",
       "enum": [
@@ -50,8 +56,18 @@
         "prison",
         "boss-arena",
         "showcase",
-        "roleplay-town"
-      ]
+        "roleplay-town",
+        "entrance",
+        "corridor",
+        "junction",
+        "chamber",
+        "treasure-room",
+        "boss-room",
+        "trap-room",
+        "shrine",
+        "barracks"
+      ],
+      "description": "Single category. Must belong to the entry's type (build vs modular-room); enforced by the allOf rule."
     },
     "tier": {
       "type": "string",
@@ -156,5 +172,52 @@
       "description": "Freeform low-priority tags. Not used for filter UI."
     },
     "warnings": { "type": "string", "maxLength": 600 }
-  }
+  },
+  "allOf": [
+    {
+      "description": "category must belong to the entry's type",
+      "if": {
+        "properties": { "type": { "const": "modular-room" } },
+        "required": ["type"]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "enum": [
+              "entrance",
+              "corridor",
+              "junction",
+              "chamber",
+              "treasure-room",
+              "boss-room",
+              "trap-room",
+              "prison",
+              "shrine",
+              "barracks"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "category": {
+            "enum": [
+              "main-base",
+              "outpost",
+              "raid-base",
+              "pvp-defense",
+              "vault",
+              "trader-hub",
+              "garden",
+              "crafting-hall",
+              "prison",
+              "boss-arena",
+              "showcase",
+              "roleplay-town"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

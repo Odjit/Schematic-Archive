@@ -39,9 +39,18 @@ Preact, deploys to GitHub Pages.
 - Entry page: real README/related-entries (currently summary placeholder).
 
 ## Planned: taxonomy + form redesign (maintainer-directed)
-- **Top-level Type**: Build vs Modular Room (for the Catacombs mod — small rooms
-  the mod assembles into dungeons). Each Type gets its own category set; rooms
-  may later carry connector/exit metadata.
+- **Top-level Type — DONE**: Build vs Modular Room (Catacombs dungeon rooms).
+  `TYPES` + `BUILD_CATEGORIES` / `ROOM_CATEGORIES` (10 rooms) / `ALL_CATEGORIES`
+  / `CATEGORIES_BY_TYPE` in `site-config.ts`. Schema has an optional `type`
+  (defaults to build) plus an `allOf` if/then so `category` must match the type
+  (verified with ajv). `type` flows through build-index (defaults to build),
+  `filters.ts` (new `type` dimension, `?type=` URL param), and the browse rail
+  as a top-level All/Builds/Modular Rooms switch that scopes the Category list
+  and resets category on change. MetaPanel shows a Type row; the submit form has
+  a Type dropdown and lists room categories. `prison` is shared by both sets
+  (disambiguated by Type). Still open: rooms may later carry connector/exit
+  metadata, and there's no Modular Room sample yet (needs a real room
+  `.schematic` to validate floorplan + derivations against).
 - **Auto-derive at build time from the `.schematic`** (and drop from the form):
   - **`objectCount` — DONE**: `deriveObjectCount` in `build-index.mjs` counts
     placed build pieces = prefabs prefixed `TM_`/`Chain_`/`BP_` (the mod's own

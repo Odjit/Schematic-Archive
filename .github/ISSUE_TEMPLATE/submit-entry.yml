@@ -35,10 +35,21 @@ body:
       required: true
 
   - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: "Build = a full castle or structure. Modular Room = a small room for the Catacombs dungeon mod."
+      options:
+        - Build
+        - Modular Room
+    validations:
+      required: true
+
+  - type: dropdown
     id: category
     attributes:
       label: Category
-      description: Pick the single best fit. Use Themes for secondary flavor.
+      description: "Pick the single best fit for your Type. Build categories are listed first, Modular Room categories after. Use Themes for secondary flavor."
       options:
         - Main Base
         - Outpost
@@ -52,6 +63,17 @@ body:
         - Boss Arena
         - Showcase
         - Roleplay Town
+        - "--- Modular Room ---"
+        - Entrance
+        - Corridor
+        - Junction
+        - Chamber
+        - Treasure Room
+        - Boss Room
+        - Trap Room
+        - Room Prison
+        - Shrine
+        - Barracks
     validations:
       required: true
 

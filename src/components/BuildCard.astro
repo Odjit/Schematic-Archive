@@ -1,6 +1,6 @@
 ---
 import type { GalleryEntry } from '../lib/filters';
-import { CATEGORIES, DLCS, labelOf } from '../site-config';
+import { ALL_CATEGORIES, DLCS, labelOf } from '../site-config';
 import { withBase } from '../lib/url';
 
 interface Props { entry: GalleryEntry; }
@@ -9,7 +9,7 @@ const { entry } = Astro.props;
 const thumb = entry.thumbnail || entry.screenshots[0];
 const thumbUrl = withBase(`/entry-assets/${entry.id}/${thumb}`);
 const detailUrl = withBase(`/entry/${entry.id}/`);
-const categoryLabel = labelOf(CATEGORIES, entry.category);
+const categoryLabel = labelOf(ALL_CATEGORIES, entry.category);
 const objCount = entry.objectCount.toLocaleString();
 const dlcLabels = entry.dlc.map(slug => DLCS.find(d => d.slug === slug)).filter(Boolean) as { slug: string; label: string; fullName: string }[];
 ---

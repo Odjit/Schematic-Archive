@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BuildCard from '../components/BuildCard.astro';
-import { CATEGORIES } from '../site-config';
+import { ALL_CATEGORIES } from '../site-config';
 import { withBase } from '../lib/url';
 import index from '../data/gallery-index.json';
 import { applySort, type GalleryEntry } from '../lib/filters';
@@ -13,7 +13,7 @@ const latest = applySort(all, 'newest').slice(0, 6);
 // Quick-link categories. Show those that actually have entries first.
 const categoryCounts = new Map<string, number>();
 for (const e of all) categoryCounts.set(e.category, (categoryCounts.get(e.category) ?? 0) + 1);
-const quickLinks = CATEGORIES
+const quickLinks = ALL_CATEGORIES
   .map(c => ({ ...c, count: categoryCounts.get(c.slug) ?? 0 }))
   .sort((a, b) => b.count - a.count)
   .slice(0, 6);

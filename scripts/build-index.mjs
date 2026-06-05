@@ -251,6 +251,8 @@ function shapeForIndex(m) {
     title: m.title,
     summary: m.summary,
     author: m.author,
+    // Top-level taxonomy. Defaults to 'build' so pre-type manifests still work.
+    type: m.type ?? 'build',
     category: m.category,
     tier: m.tier,
     footprint: m.footprint,

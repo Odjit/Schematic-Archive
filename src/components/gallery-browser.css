@@ -104,6 +104,34 @@
   flex-direction: column;
   gap: 1px;
 }
+/* Top-level Type switch: segmented control that scopes the Category list. */
+.gb__typeswitch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius);
+}
+.gb__type {
+  flex: 1;
+  padding: var(--space-2) var(--space-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.gb__type:hover { color: var(--color-text); }
+.gb__type.active {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
 .gb__radio {
   width: 100%;
   display: flex;

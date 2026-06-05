@@ -15,7 +15,8 @@ import {
   type PlacementSlug,
   type SortSlug,
   type ThemeSlug,
-  type TierSlug
+  type TierSlug,
+  type TypeSlug
 } from '../site-config';
 
 // Shape of one entry in gallery-index.json. Trimmed of the heavier fields
@@ -25,6 +26,7 @@ export interface GalleryEntry {
   title: string;
   summary: string;
   author: { name: string; discord?: string; github?: string };
+  type: TypeSlug;
   category: CategorySlug;
   tier: TierSlug;
   footprint: FootprintSlug;
@@ -71,6 +73,7 @@ export type Tab = 'featured' | 'recent' | 'all';
 export interface FilterState {
   tab: Tab;
   query: string;
+  type: TypeSlug | null;     // null = all types
   category: CategorySlug | null;
   tiers: TierSlug[];
   footprints: FootprintSlug[];
@@ -85,6 +88,7 @@ export interface FilterState {
 export const EMPTY_FILTERS: FilterState = {
   tab: 'featured',
   query: '',
+  type: null,
   category: null,
   tiers: [],
   footprints: [],
@@ -100,6 +104,9 @@ export const EMPTY_FILTERS: FilterState = {
 
 const matchTab = (e: GalleryEntry, t: Tab) =>
   t === 'all' || t === 'recent' || (t === 'featured' && e.featured);
+
+const matchType = (e: GalleryEntry, t: TypeSlug | null) =>
+  !t || e.type === t;
 
 const matchCategory = (e: GalleryEntry, c: CategorySlug | null) =>
   !c || e.category === c;
@@ -141,7 +148,7 @@ const matchQuery = (e: GalleryEntry, q: string) => {
 // "if I added this filter, how many would I see" counts that do not
 // collapse to zero as the user narrows.
 type Dim =
-  | 'tab' | 'query' | 'category' | 'tier' | 'footprint' | 'modes'
+  | 'tab' | 'query' | 'type' | 'category' | 'tier' | 'footprint' | 'modes'
   | 'dlc' | 'themes' | 'buckets';
 
 export function applyFilters(
@@ -152,6 +159,7 @@ export function applyFilters(
   return entries.filter(e => {
     if (except !== 'tab'          && !matchTab(e, f.tab))                       return false;
     if (except !== 'query'        && !matchQuery(e, f.query))                   return false;
+    if (except !== 'type'         && !matchType(e, f.type))                     return false;
     if (except !== 'category'     && !matchCategory(e, f.category))             return false;
     if (except !== 'tier'         && !anyOf(f.tiers, e.tier))                   return false;
     if (except !== 'footprint'    && !anyOf(f.footprints, e.footprint))         return false;
@@ -185,6 +193,7 @@ export function encodeState(f: FilterState): string {
   const p = new URLSearchParams();
   if (f.tab !== 'featured') p.set('tab', f.tab);
   if (f.query) p.set('q', f.query);
+  if (f.type) p.set('type', f.type);
   if (f.category) p.set('cat', f.category);
   if (f.tiers.length) p.set('tier', f.tiers.join(','));
   if (f.footprints.length) p.set('size', f.footprints.join(','));
@@ -206,6 +215,7 @@ export function decodeState(search: string): FilterState {
     ...EMPTY_FILTERS,
     tab: (p.get('tab') as Tab) ?? 'featured',
     query: p.get('q') ?? '',
+    type: (p.get('type') as TypeSlug | null) ?? null,
     category: (p.get('cat') as CategorySlug | null) ?? null,
     tiers: split<TierSlug>('tier'),
     footprints: split<FootprintSlug>('size'),

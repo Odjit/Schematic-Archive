@@ -14,8 +14,18 @@ export type Slug<T extends readonly { slug: string }[]> = T[number]['slug'];
 export const SITE_NAME = 'The Schematic Archive';
 export const SITE_TAGLINE = 'Community castle blueprints for V Rising.';
 
-// --- Category (single-select) ---
-export const CATEGORIES = [
+// --- Type (single-select, top level) ---
+// A Build is a full castle/structure. A Modular Room is a small room the
+// Catacombs mod assembles into dungeons. Each Type has its own category set.
+export const TYPES = [
+  { slug: 'build',        label: 'Build',        plural: 'Builds' },
+  { slug: 'modular-room', label: 'Modular Room', plural: 'Modular Rooms' }
+] as const;
+
+// --- Category (single-select, scoped to Type) ---
+// Build categories (the original set). Slugs are URL-stable; never reorder or
+// rename a slug, only append.
+export const BUILD_CATEGORIES = [
   { slug: 'main-base',     label: 'Main Base' },
   { slug: 'outpost',       label: 'Outpost' },
   { slug: 'raid-base',     label: 'Raid Base' },
@@ -29,6 +39,34 @@ export const CATEGORIES = [
   { slug: 'showcase',      label: 'Showcase' },
   { slug: 'roleplay-town', label: 'Roleplay Town' }
 ] as const;
+
+// Modular Room categories (Catacombs dungeon rooms).
+export const ROOM_CATEGORIES = [
+  { slug: 'entrance',      label: 'Entrance' },
+  { slug: 'corridor',      label: 'Corridor' },
+  { slug: 'junction',      label: 'Junction' },
+  { slug: 'chamber',       label: 'Chamber' },
+  { slug: 'treasure-room', label: 'Treasure Room' },
+  { slug: 'boss-room',     label: 'Boss Room' },
+  { slug: 'trap-room',     label: 'Trap Room' },
+  { slug: 'prison',        label: 'Prison' },
+  { slug: 'shrine',        label: 'Shrine' },
+  { slug: 'barracks',      label: 'Barracks' }
+] as const;
+
+// Which category set belongs to each Type (drives the browse rail + the form).
+export const CATEGORIES_BY_TYPE = {
+  'build':        BUILD_CATEGORIES,
+  'modular-room': ROOM_CATEGORIES
+} as const;
+
+// Flat, slug-unique union for label lookups (labelOf) and homepage quick links.
+// `prison` is shared between both sets; the build entry wins (same label), so
+// every slug appears once.
+export const ALL_CATEGORIES = [
+  ...BUILD_CATEGORIES,
+  ...ROOM_CATEGORIES.filter(r => !BUILD_CATEGORIES.some(b => b.slug === r.slug))
+];
 
 // --- Tier ---
 export const TIERS = [
@@ -114,7 +152,8 @@ export const SORTS = [
   { slug: 'featured',     label: 'Featured first' }
 ] as const;
 
-export type CategorySlug  = typeof CATEGORIES[number]['slug'];
+export type TypeSlug      = typeof TYPES[number]['slug'];
+export type CategorySlug  = typeof BUILD_CATEGORIES[number]['slug'] | typeof ROOM_CATEGORIES[number]['slug'];
 export type TierSlug      = typeof TIERS[number]['slug'];
 export type FootprintSlug = typeof FOOTPRINTS[number]['slug'];
 export type PlacementSlug = typeof PLACEMENTS[number]['slug'];

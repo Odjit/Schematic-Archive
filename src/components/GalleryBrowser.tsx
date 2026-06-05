@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import MiniSearch from 'minisearch';
 import {
-  CATEGORIES,
+  TYPES,
+  CATEGORIES_BY_TYPE,
+  ALL_CATEGORIES,
   TIERS,
   FOOTPRINTS,
   MODES,
@@ -11,7 +13,8 @@ import {
   OBJECT_BUCKETS,
   SORTS,
   labelOf,
-  type CategorySlug
+  type CategorySlug,
+  type TypeSlug
 } from '../site-config';
 import {
   applyFilters,
@@ -145,8 +148,19 @@ export default function GalleryBrowser({ entries }: Props) {
   };
   const setCategory = (slug: CategorySlug | null) =>
     setFilters(f => ({ ...f, category: f.category === slug ? null : slug }));
+  // Switching Type clears the category, since a build category isn't valid
+  // under Modular Rooms (and vice versa).
+  const setType = (slug: TypeSlug | null) =>
+    setFilters(f => {
+      const type = f.type === slug ? null : slug;
+      return { ...f, type, category: null };
+    });
   const setTab = (t: Tab) => setFilters(f => ({ ...f, tab: t }));
   const clearAll = () => setFilters(f => ({ ...EMPTY_FILTERS, tab: f.tab, sort: f.sort }));
+
+  // Category options shown in the rail follow the active Type. With no Type
+  // selected we show the slug-unique union so every category is reachable.
+  const activeCategories = filters.type ? CATEGORIES_BY_TYPE[filters.type] : ALL_CATEGORIES;
 
   const queryRef = useRef<HTMLInputElement>(null);
 
@@ -189,6 +203,23 @@ export default function GalleryBrowser({ entries }: Props) {
       <div class="gb__body">
         {/* Filter rail */}
         <aside class="gb__rail" aria-label="Filters">
+          <div class="gb__typeswitch" role="group" aria-label="Type">
+            <button
+              class={cn('gb__type', filters.type === null && 'active')}
+              onClick={() => setType(null)}
+            >
+              All
+            </button>
+            {TYPES.map(t => (
+              <button
+                class={cn('gb__type', filters.type === t.slug && 'active')}
+                onClick={() => setType(t.slug)}
+              >
+                {t.plural}
+              </button>
+            ))}
+          </div>
+
           <Section title="Category">
             <ul class="gb__radios">
               <li>
@@ -199,7 +230,7 @@ export default function GalleryBrowser({ entries }: Props) {
                   Any
                 </button>
               </li>
-              {CATEGORIES.map(c => (
+              {activeCategories.map(c => (
                 <li>
                   <button
                     class={cn('gb__radio', filters.category === c.slug && 'active')}
@@ -355,7 +386,7 @@ function Card({ entry }: { entry: GalleryEntry }) {
       <div class="gbc__thumb">
         <img src={withBase(`/entry-assets/${entry.id}/${thumb}`)} alt={entry.title} loading="lazy" />
         <span class="gbc__tier">{entry.tier}</span>
-        <span class="gbc__cat">{labelOf(CATEGORIES, entry.category)}</span>
+        <span class="gbc__cat">{labelOf(ALL_CATEGORIES, entry.category)}</span>
       </div>
       <div class="gbc__body">
         <div class="gbc__title">{entry.title}</div>

@@ -1,7 +1,7 @@
 ---
 import type { GalleryEntry } from '../lib/filters';
 import {
-  CATEGORIES, TIERS, FOOTPRINTS, MODES, DLCS, THEMES, PLACEMENTS, labelOf
+  TYPES, ALL_CATEGORIES, TIERS, FOOTPRINTS, MODES, DLCS, THEMES, PLACEMENTS, labelOf
 } from '../site-config';
 
 interface Props { entry: GalleryEntry; }
@@ -21,8 +21,11 @@ const updated = entry.updatedAt
       {entry.author.discord && <small class="muted"> · {entry.author.discord}</small>}
     </dd>
 
+    <dt>Type</dt>
+    <dd>{labelOf(TYPES, entry.type)}</dd>
+
     <dt>Category</dt>
-    <dd>{labelOf(CATEGORIES, entry.category)}</dd>
+    <dd>{labelOf(ALL_CATEGORIES, entry.category)}</dd>
 
     <dt>Tier</dt>
     <dd>{labelOf(TIERS, entry.tier)}</dd>
