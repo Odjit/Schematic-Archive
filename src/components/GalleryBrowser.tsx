@@ -9,7 +9,6 @@ import {
   DLCS,
   THEMES,
   OBJECT_BUCKETS,
-  GAME_VERSIONS,
   SORTS,
   labelOf,
   type CategorySlug
@@ -104,7 +103,6 @@ export default function GalleryBrowser({ entries }: Props) {
       dlc:         base('dlc'),
       themes:      base('themes'),
       buckets:     base('buckets'),
-      gameVersion: base('gameVersions'),
       category:    base('category')
     };
     const tally = <K extends string>(list: GalleryEntry[], get: (e: GalleryEntry) => K | K[]): Record<K, number> => {
@@ -123,7 +121,6 @@ export default function GalleryBrowser({ entries }: Props) {
       modes:       tally(within.modes,       e => e.modes),
       dlc:         tally(within.dlc,         e => e.dlc),
       themes:      tally(within.themes,      e => e.themes),
-      gameVersion: tally(within.gameVersion, e => e.gameVersion),
       buckets: Object.fromEntries(
         OBJECT_BUCKETS.map(b => [b.slug, within.buckets.filter(e =>
           e.objectCount >= b.min && e.objectCount <= b.max).length])
@@ -281,13 +278,6 @@ export default function GalleryBrowser({ entries }: Props) {
             picked={filters.buckets}
             counts={counts.buckets}
             onToggle={s => toggleArr('buckets', s)}
-          />
-          <CheckSection
-            title="Game version"
-            options={GAME_VERSIONS}
-            picked={filters.gameVersions}
-            counts={counts.gameVersion}
-            onToggle={s => toggleArr('gameVersions', s)}
           />
 
           <button class="gb__clear" onClick={clearAll}>Clear all</button>

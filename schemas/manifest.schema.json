@@ -12,11 +12,7 @@
     "tier",
     "footprint",
     "modes",
-    "dlc",
     "themes",
-    "objectCount",
-    "gameVersion",
-    "modVersion",
     "schematicFile",
     "screenshots",
     "submittedAt"
@@ -77,6 +73,7 @@
     "dlc": {
       "type": "array",
       "uniqueItems": true,
+      "description": "Optional. Auto-derived from the schematic's prefabs at build time; only set this to force-add a pack the auto-detector can't see (e.g. equippables shown in screenshots). The build unions manual + detected.",
       "items": {
         "type": "string",
         "enum": [
@@ -110,15 +107,28 @@
         ]
       }
     },
-    "objectCount": { "type": "integer", "minimum": 1 },
+    "objectCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Auto-counted at build time (placed TM_/Chain_/BP_ pieces). Only a fallback for text-placeholder builds; the derived value wins when a real schematic is present."
+    },
+    "placement": {
+      "type": "string",
+      "enum": ["placeable", "territory-bound"],
+      "description": "Optional. Auto-derived from the schematic (territory-bound when the file has a territoryIndex, else placeable). Manifest value is a fallback only."
+    },
+    "schematicVersion": {
+      "type": "string",
+      "description": "Optional. Auto-derived from the schematic file's top-level version (e.g. '1.0.1'). The schematic format version, distinct from gameVersion/modVersion."
+    },
     "gameVersion": {
       "type": "string",
       "enum": ["1.0", "1.1"],
-      "description": "Game major version. Add new values as new V Rising versions ship."
+      "description": "Optional/legacy. No longer collected on the submit form or shown in the gallery; the schematic doesn't carry the V Rising game version. Kept so existing manifests validate."
     },
     "modVersion": {
       "type": "string",
-      "description": "SemVer range string for KindredSchematics, e.g. '>=2.4.0'."
+      "description": "Optional. KindredSchematics mod compatibility (SemVer range, e.g. '>=2.4.0'). No longer on the submit form; maintainer may set it by hand and it shows when present."
     },
     "schematicFile": {
       "type": "string",

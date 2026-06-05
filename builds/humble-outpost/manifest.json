@@ -12,7 +12,6 @@
   "modes": ["pve", "solo", "duo"],
   "dlc": [],
   "themes": ["minimalist"],
-  "objectCount": 248,
   "gameVersion": "1.1",
   "modVersion": ">=2.4.0",
   "schematicFile": "humble-outpost.schematic",

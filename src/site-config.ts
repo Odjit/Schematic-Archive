@@ -45,6 +45,15 @@ export const FOOTPRINTS = [
   { slug: 'max',    label: 'Max Territory' }
 ] as const;
 
+// --- Placement (single, derived from the schematic) ---
+// A territory save (KindredSchematics `saveterritory`) is bound to a specific
+// castle territory and carries no bounding box; everything else is freely
+// placeable. Derived at build time — not a submit-form field.
+export const PLACEMENTS = [
+  { slug: 'placeable',       label: 'Placeable',       hint: 'Drop anywhere on a valid plot' },
+  { slug: 'territory-bound', label: 'Territory-bound', hint: 'Saved to a specific territory footprint' }
+] as const;
+
 // --- Game modes (multi) ---
 export const MODES = [
   { slug: 'pve',  label: 'PvE'  },
@@ -94,12 +103,6 @@ export const OBJECT_BUCKETS = [
   { slug: 'gt-3000',    label: '3000+',       min: 3001, max: Number.POSITIVE_INFINITY }
 ] as const;
 
-// --- Game versions ---
-export const GAME_VERSIONS = [
-  { slug: '1.0', label: '1.0' },
-  { slug: '1.1', label: '1.1' }
-] as const;
-
 // --- Sort options ---
 export const SORTS = [
   { slug: 'newest',       label: 'Newest' },
@@ -114,6 +117,7 @@ export const SORTS = [
 export type CategorySlug  = typeof CATEGORIES[number]['slug'];
 export type TierSlug      = typeof TIERS[number]['slug'];
 export type FootprintSlug = typeof FOOTPRINTS[number]['slug'];
+export type PlacementSlug = typeof PLACEMENTS[number]['slug'];
 export type ModeSlug      = typeof MODES[number]['slug'];
 export type DlcSlug       = typeof DLCS[number]['slug'];
 export type ThemeSlug     = typeof THEMES[number]['slug'];

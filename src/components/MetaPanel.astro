@@ -1,7 +1,7 @@
 ---
 import type { GalleryEntry } from '../lib/filters';
 import {
-  CATEGORIES, TIERS, FOOTPRINTS, MODES, DLCS, THEMES, GAME_VERSIONS, labelOf
+  CATEGORIES, TIERS, FOOTPRINTS, MODES, DLCS, THEMES, PLACEMENTS, labelOf
 } from '../site-config';
 
 interface Props { entry: GalleryEntry; }
@@ -30,6 +30,19 @@ const updated = entry.updatedAt
     <dt>Footprint</dt>
     <dd>{labelOf(FOOTPRINTS, entry.footprint)}</dd>
 
+    {entry.placement && (
+      <>
+        <dt>Placement</dt>
+        <dd>
+          {labelOf(PLACEMENTS, entry.placement)}
+          {(() => {
+            const p = PLACEMENTS.find(x => x.slug === entry.placement);
+            return p ? <small class="muted"> · {p.hint}</small> : null;
+          })()}
+        </dd>
+      </>
+    )}
+
     <dt>Modes</dt>
     <dd>{entry.modes.map(s => labelOf(MODES, s)).join(', ')}</dd>
 
@@ -57,11 +70,19 @@ const updated = entry.updatedAt
     <dt>Object count</dt>
     <dd>{entry.objectCount.toLocaleString()}</dd>
 
-    <dt>Game version</dt>
-    <dd>{labelOf(GAME_VERSIONS, entry.gameVersion)}</dd>
+    {entry.schematicVersion && (
+      <>
+        <dt>Schematic format</dt>
+        <dd><code>{entry.schematicVersion}</code></dd>
+      </>
+    )}
 
-    <dt>Mod compatibility</dt>
-    <dd><code>{entry.modVersion}</code></dd>
+    {entry.modVersion && (
+      <>
+        <dt>Mod compatibility</dt>
+        <dd><code>{entry.modVersion}</code></dd>
+      </>
+    )}
 
     <dt>Submitted</dt>
     <dd>{submitted}{updated && updated !== submitted && <> · updated {updated}</>}</dd>

@@ -13,7 +13,6 @@
   "modes": ["pvp", "clan"],
   "dlc": ["castlevania", "sinister-evolution"],
   "themes": ["gothic", "winter", "symmetrical", "throne-room"],
-  "objectCount": 1432,
   "gameVersion": "1.1",
   "modVersion": ">=2.4.0",
   "schematicFile": "frostbound-keep.schematic",

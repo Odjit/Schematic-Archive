@@ -12,6 +12,7 @@ import {
   type DlcSlug,
   type FootprintSlug,
   type ModeSlug,
+  type PlacementSlug,
   type SortSlug,
   type ThemeSlug,
   type TierSlug
@@ -31,8 +32,14 @@ export interface GalleryEntry {
   dlc: DlcSlug[];
   themes: ThemeSlug[];
   objectCount: number;
-  gameVersion: string;
-  modVersion: string;
+  /** Optional. V Rising game version — no longer collected; kept for legacy entries. */
+  gameVersion?: string;
+  /** Optional. KindredSchematics mod compatibility, maintainer-set when known. */
+  modVersion?: string;
+  /** How the build is placed in-game, derived from the schematic. */
+  placement?: PlacementSlug;
+  /** The schematic file's format version (e.g. "1.0.1"), derived. */
+  schematicVersion?: string;
   thumbnail: string;
   screenshots: string[];
   schematicFile: string;
@@ -72,7 +79,6 @@ export interface FilterState {
   vanillaOnly: boolean;
   themes: ThemeSlug[];
   buckets: BucketSlug[];
-  gameVersions: string[];
   sort: SortSlug;
 }
 
@@ -87,7 +93,6 @@ export const EMPTY_FILTERS: FilterState = {
   vanillaOnly: false,
   themes: [],
   buckets: [],
-  gameVersions: [],
   sort: 'newest'
 };
 
@@ -137,7 +142,7 @@ const matchQuery = (e: GalleryEntry, q: string) => {
 // collapse to zero as the user narrows.
 type Dim =
   | 'tab' | 'query' | 'category' | 'tier' | 'footprint' | 'modes'
-  | 'dlc' | 'themes' | 'buckets' | 'gameVersions';
+  | 'dlc' | 'themes' | 'buckets';
 
 export function applyFilters(
   entries: GalleryEntry[],
@@ -154,7 +159,6 @@ export function applyFilters(
     if (except !== 'dlc'          && !matchDlc(e, f.dlc, f.vanillaOnly))        return false;
     if (except !== 'themes'       && !anyOf(f.themes, e.themes))                return false;
     if (except !== 'buckets'      && !matchBuckets(e.objectCount, f.buckets))   return false;
-    if (except !== 'gameVersions' && !anyOf(f.gameVersions, e.gameVersion))     return false;
     return true;
   });
 }
@@ -189,7 +193,6 @@ export function encodeState(f: FilterState): string {
   if (f.vanillaOnly) p.set('vanilla', '1');
   if (f.themes.length) p.set('theme', f.themes.join(','));
   if (f.buckets.length) p.set('obj', f.buckets.join(','));
-  if (f.gameVersions.length) p.set('ver', f.gameVersions.join(','));
   if (f.sort !== 'newest') p.set('sort', f.sort);
   const s = p.toString();
   return s ? `?${s}` : '';
@@ -211,7 +214,6 @@ export function decodeState(search: string): FilterState {
     vanillaOnly: p.get('vanilla') === '1',
     themes: split<ThemeSlug>('theme'),
     buckets: split<BucketSlug>('obj'),
-    gameVersions: split<string>('ver'),
     sort: (p.get('sort') as SortSlug) ?? 'newest'
   };
 }

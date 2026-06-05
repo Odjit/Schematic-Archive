@@ -34,18 +34,6 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: discord
-    attributes:
-      label: Discord handle (optional)
-      placeholder: "odjit"
-
-  - type: input
-    id: github
-    attributes:
-      label: GitHub handle (optional)
-      placeholder: "Odjit"
-
   - type: dropdown
     id: category
     attributes:
@@ -97,18 +85,11 @@ body:
     validations:
       required: true
 
-  - type: checkboxes
-    id: dlc
+  - type: markdown
     attributes:
-      label: Uses pieces from these packs
-      description: Leave empty if the build uses only vanilla pieces.
-      options:
-        - label: "Founder's Pack: Eldest Bloodline"
-        - label: "Legacy of Castlevania"
-        - label: "Dracula's Relics"
-        - label: "Sinister Evolution"
-        - label: "Haunted Nights"
-        - label: "Eternal Dominance"
+      value: |
+        **DLC packs, object count, version, and placement are detected
+        automatically** from your schematic — no need to enter them here.
 
   - type: checkboxes
     id: themes
@@ -127,31 +108,6 @@ body:
         - label: Library
         - label: Workshop
         - label: Dungeon
-
-  - type: input
-    id: object_count
-    attributes:
-      label: Object count
-      description: The number shown by KindredSchematics when you export.
-      placeholder: "1432"
-    validations:
-      required: true
-
-  - type: dropdown
-    id: game_version
-    attributes:
-      label: Game version this was built on
-      options: ["1.0", "1.1"]
-    validations:
-      required: true
-
-  - type: input
-    id: mod_version
-    attributes:
-      label: Minimum KindredSchematics mod version
-      placeholder: ">=2.4.0"
-    validations:
-      required: true
 
   - type: textarea
     id: schematic

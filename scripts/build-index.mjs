@@ -104,6 +104,9 @@ async function copyAssetsFor(folder, manifest) {
  *                      (unioned with manifest.dlc downstream in shapeForIndex)
  *   __storedItems    — { inventories, stacks } | null — non-empty container
  *                      contents shipped inside the schematic (null if none)
+ *   __objectCount    — number | null — placed build pieces (null if no schematic)
+ *   __placement      — 'territory-bound' | 'placeable' | null
+ *   __schematicVersion — string | null — the file's format version
  *
  * The floor plan needs the prefab table; the other derivations don't, so we
  * still run them when the table is missing.
@@ -112,6 +115,9 @@ async function processSchematic(folder, manifest, outDir) {
   manifest.__hasFloorplan = false;
   manifest.__derivedPacks = [];
   manifest.__storedItems = null;
+  manifest.__objectCount = null;
+  manifest.__placement = null;
+  manifest.__schematicVersion = null;
 
   if (!manifest.schematicFile) return;
   const schematicPath = join(folder, manifest.schematicFile);
@@ -128,6 +134,21 @@ async function processSchematic(folder, manifest, outDir) {
   if (!Array.isArray(schematic.entities)) {
     // Placeholder text files etc. — silently skip.
     return;
+  }
+
+  // Placement: a territory save records a `territoryIndex` and omits
+  // location/boundingBox (KindredSchematics SchematicService.SaveSchematic);
+  // radius/box saves do the opposite. territoryIndex can legitimately be 0,
+  // so test the type, not truthiness.
+  manifest.__placement = typeof schematic.territoryIndex === 'number'
+    ? 'territory-bound'
+    : 'placeable';
+  // Format version the mod stamped into the file (currently always "1.0.1").
+  if (typeof schematic.version === 'string') manifest.__schematicVersion = schematic.version;
+
+  manifest.__objectCount = deriveObjectCount(schematic);
+  if (manifest.objectCount != null && manifest.objectCount !== manifest.__objectCount) {
+    log(`object count ${manifest.id}: derived ${manifest.__objectCount} (manifest said ${manifest.objectCount}; using derived)`);
   }
 
   manifest.__storedItems = deriveStoredItems(schematic);
@@ -153,6 +174,24 @@ function derivePacks(schematic, table) {
     if (pack) packs.add(pack);
   }
   return [...packs].sort();
+}
+
+/**
+ * Count the placed build pieces in a schematic.
+ *
+ * "Object" here matches KindredSchematics' own definition of a schematic
+ * building entity (SchematicService.cs): prefabs prefixed TM_ (tile models),
+ * Chain_ (railings/chains), or BP_ (blueprints). The file also stores spawned
+ * dependencies that aren't placed objects — `External_Inventory` /
+ * `Refinementstation_Inventory*` backers, stored `Item_*`, `CHAR_*` servants —
+ * which this filter excludes. So this is far below `entities.length`.
+ */
+function deriveObjectCount(schematic) {
+  let n = 0;
+  for (const ent of schematic.entities) {
+    if (ent.prefab && /^(TM_|Chain_|BP_)/.test(ent.prefab)) n++;
+  }
+  return n;
 }
 
 /**
@@ -218,9 +257,15 @@ function shapeForIndex(m) {
     modes: m.modes ?? [],
     dlc,
     themes: m.themes ?? [],
-    objectCount: m.objectCount,
+    // Derived from the schematic (placed build pieces) when available; the
+    // manifest value is only a fallback for text-placeholder builds. 0 keeps
+    // the field a number so the UI's .toLocaleString() never sees undefined.
+    objectCount: m.__objectCount ?? m.objectCount ?? 0,
     gameVersion: m.gameVersion,
     modVersion: m.modVersion,
+    // Derived from the schematic; manifest value is a fallback only.
+    placement: m.__placement ?? m.placement ?? undefined,
+    schematicVersion: m.__schematicVersion ?? m.schematicVersion ?? undefined,
     thumbnail: m.thumbnail ?? m.screenshots?.[0] ?? null,
     screenshots: m.screenshots ?? [],
     schematicFile: m.schematicFile,
