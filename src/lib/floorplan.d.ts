@@ -272,6 +272,18 @@ export interface BuildPanelOptions {
  * Build the shared "is this entity in the current view?" predicate (Y band +
  * stairCells). Used by buildPanel and by the isometric scene builder.
  */
+/**
+ * Build the mapper that snaps structural pieces onto one wall line. V Rising
+ * anchors a wall on its face, so a piece flipped 180 degrees has a pivot one
+ * tile away; without this a continuous wall kinks wherever the facing flips.
+ */
+export function makeStructureSnap(
+  entities: SchematicEntity[] | undefined,
+  lookup: CategoryLookup,
+  pitch: number | null,
+  passes: (entity: SchematicEntity, cls: PrefabLookupResult) => boolean,
+): (entity: SchematicEntity, cls: PrefabLookupResult) => [number, number];
+
 export function makeEntityFilter(
   yFilter: YFilter | null,
   stairCells?: Set<string> | null,

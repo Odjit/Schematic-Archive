@@ -22,13 +22,16 @@
  * pieces on a 10-tile pitch read as one continuous wall instead of pickets.
  */
 import {
+  FLOOR_HEIGHT_M,
   FULL_CELL_CATEGORIES,
   LAYER_ORDER,
   RIBBON_CATEGORIES,
+  STRUCTURE_CATEGORIES,
   TILES_PER_METRE,
   UNKNOWN_CATEGORY,
   buildRibbonRects,
   makeEntityFilter,
+  makeStructureSnap,
   swapsWidthDepth,
 } from './floorplan.mjs';
 
@@ -38,6 +41,33 @@ export const ISO_SIN = Math.sin(Math.PI / 6);
 
 /** Minimum box height in metres, so flat pieces (floors, carpet) still paint. */
 const MIN_BOX_H = 0.06;
+
+/**
+ * A castle wall is 1 m thick. Wall-mounted pieces are flattened to this across
+ * the wall so they sit in its plane instead of standing proud of it.
+ */
+const WALL_THICKNESS_M = 1;
+
+/**
+ * Height a stair piece is drawn at.
+ *
+ * Stairs are a FULL_CELL category, so each piece covers its whole cell — at
+ * collider height that's a 5 m solid block per cell, and a flight becomes a
+ * wall of cubes. A piece is one section of tread, not a storey of masonry; the
+ * flight as a whole is what climbs. Until they're drawn as a real ramp (the
+ * per-cell rise is there for the taking in detectStairRuns), a low platform
+ * reads as circulation without blocking the room.
+ */
+const STAIR_PLATFORM_M = 1.2;
+
+/**
+ * Pieces that live on a wall and should share its line. Wall decor is here
+ * because most of it is windows: `TM_Castle_WallDecor_Gothic_Window01_*` and
+ * friends carry a 3x2 m collider, which extruded on its own pivot bolts a slab
+ * onto both faces of a 1 m wall. Snapped and flattened, the same box lands
+ * inside the wall volume and reads as a panel set into it.
+ */
+const SNAP_TO_WALL_LINE = new Set([...STRUCTURE_CATEGORIES, 'wall-decor']);
 
 // Paint order within one (depth, height) tie — mirrors the plan's z-stacking
 // so a carpet lands on its floor tile, not under it.
@@ -117,10 +147,23 @@ export function buildIsoScene(entities, lookup, geom, yFilter, opts = {}) {
   // them: snapped, bridged, and half a cell wide rather than filling the tile,
   // because that's how a walkway reads in game.
   const ribbon = buildRibbonRects(entities, lookup, pitch, passes);
+  // Same wall-line snap the plan uses, so a wall doesn't kink where a piece is
+  // flipped (see makeStructureSnap). Wall decor joins the snap here: it's
+  // mounted on a wall, so it belongs on the wall's line, not on its own pivot.
+  const snapStructure = makeStructureSnap(
+    entities, lookup, pitch, passes, SNAP_TO_WALL_LINE,
+  );
   for (const r of ribbon.rects) {
     boxes.push({
       x0: r.x0, z0: r.z0, w: r.w, d: r.d,
       by: r.y,
+      // A path lies ON the floor tiles it crosses and is coplanar with them,
+      // so depth between the two is meaningless. Sorted on its own far corner
+      // a path sank under the floor of every cell it entered, which broke each
+      // route into disconnected patches. Its NEAR corner puts it after the
+      // floor of every cell it touches, including the far one a bridge reaches
+      // into.
+      depth: (r.x0 + r.w) + (r.z0 + r.d),
       h: MIN_BOX_H,
       layerId: r.layerId,
       prefab: r.prefab,
@@ -150,27 +193,49 @@ export function buildIsoScene(entities, lookup, geom, yFilter, opts = {}) {
     if (pitch && FULL_CELL_CATEGORIES.has(cls.id)) {
       w = pitch;
       d = pitch;
+    } else if (cls.id === 'wall-decor') {
+      // Flatten across the wall so the piece sits in its plane (see
+      // SNAP_TO_WALL_LINE). The cross axis is the one the piece isn't running
+      // along, which its rotation already tells us.
+      const thick = WALL_THICKNESS_M * TILES_PER_METRE;
+      if (swapsWidthDepth(e.rot)) w = Math.min(w, thick);
+      else d = Math.min(d, thick);
     }
 
-    const baseY = (e.pos?.[1] ?? 0) + cls.y0;
+    let baseY = (e.pos?.[1] ?? 0) + cls.y0;
     let h = Math.max(MIN_BOX_H, cls.y1 - cls.y0);
     if (RIBBON_CATEGORIES.has(cls.id)) {
       // Only reached when there's no pitch to snap to. Pavement and carpet
       // carry a 1 m collider (clearance, not thickness), so extruded literally
       // they'd ring every path in kerbs. They lie flat instead.
       h = MIN_BOX_H;
-    } else if (cls.id === 'wall' || cls.id === 'fence') {
-      h *= wallScale;
+    } else {
+      if (STRUCTURE_CATEGORIES.has(cls.id)) {
+        // Wall colliders dip ~0.11 m below the floor; the piece sits on it.
+        baseY = e.pos?.[1] ?? 0;
+      }
+      // Cap at the storey. A collider is a clearance volume, not a visual
+      // extent: window and entrance walls measure 7.9 m against a plain wall's
+      // 5 m (the arch above the opening is in the AABB), a wall banner 12.4 m,
+      // a forge 8 m. Extruded literally those punch through the storey above
+      // and turn a windowed wall into battlements. Nothing built inside a
+      // castle can exceed its storey, so anything that claims to is slop.
+      // Plants are the exception — a tree really is taller than the wall.
+      if (cls.id !== 'plant') h = Math.min(h, FLOOR_HEIGHT_M);
+      if (cls.id === 'stairs') h = Math.min(h, STAIR_PLATFORM_M);
+      if (cls.id === 'wall' || cls.id === 'fence') h *= wallScale;
     }
 
-    const x0 = e.tilePos[0] - w / 2;
-    const z0 = e.tilePos[1] - d / 2;
+    const [tx, tz] = snapStructure(e, cls);
+    const x0 = tx - w / 2;
+    const z0 = tz - d / 2;
     boxes.push({
       x0, z0, w, d,
       by: baseY,
       h,
       layerId,
       prefab: e.prefab,
+      depth: x0 + z0,
       // Projected silhouette bounds, in the same tile-sized units isoProject
       // returns. Precomputed because the painter culls against the viewport
       // every frame: at high zoom that skips most of the scene, which is the
@@ -182,15 +247,15 @@ export function buildIsoScene(entities, lookup, geom, yFilter, opts = {}) {
     if (baseY < yMin) yMin = baseY;
   }
 
-  // Painter's order. Depth in this projection grows with (x + z), so sorting
-  // on each box's FAR corner draws back to front. Using the far corner (rather
-  // than the near one) also means a large box — a floor tile — sorts before
-  // the small ones standing on it, which is exactly what we want. Ties break
-  // by base height, then by the plan's own layer order.
+  // Painter's order: back to front. Depth in this projection grows with
+  // (x + z), so each box sorts on the `depth` its builder recorded — the FAR
+  // corner for most things, which also means a large box (a floor tile) sorts
+  // before the small ones standing on it. Ties break by base height, then by
+  // the plan's own layer order.
   boxes.sort((a, b) =>
-    (a.x0 + a.z0) - (b.x0 + b.z0) ||
-    a.by - b.by ||
-    (LAYER_RANK.get(a.layerId) ?? 0) - (LAYER_RANK.get(b.layerId) ?? 0));
+    (a.depth - b.depth) ||
+    (a.by - b.by) ||
+    ((LAYER_RANK.get(a.layerId) ?? 0) - (LAYER_RANK.get(b.layerId) ?? 0)));
 
   return {
     boxes,

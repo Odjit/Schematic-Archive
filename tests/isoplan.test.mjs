@@ -22,6 +22,8 @@ const TABLE = {
     { id: 'wall',     label: 'Wall',     color: '#b' },
     { id: 'pavement', label: 'Pavement', color: '#e' },
     { id: 'storage',  label: 'Storage',  color: '#f' },
+    { id: 'wall-decor', label: 'Wall decor', color: '#g' },
+    { id: 'plant',      label: 'Plant',      color: '#h' },
     { id: 'other',    label: 'Other',    color: '#0' },
   ],
   prefabs: {
@@ -30,6 +32,13 @@ const TABLE = {
     Floor:    { category: 'floor',    w: 6, d: 6, y0: 0, y1: 0 },
     Pavement: { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
     Chest:    { category: 'storage',  w: 2, d: 1, y0: 0, y1: 1.5 },
+    // Window/entrance colliders include the arch: 7.9 m tall, starting just
+    // below the floor.
+    WallWindow: { category: 'wall', w: 5, d: 1, y0: -0.1, y1: 7.9 },
+    LowRail:    { category: 'fence', w: 5, d: 1, y0: 0, y1: 1.5 },
+    // Wall ornaments carry huge clearance volumes; trees are actually tall.
+    Banner:     { category: 'wall-decor', w: 2, d: 2, y0: 0, y1: 12.4 },
+    Tree:       { category: 'plant', w: 5, d: 5, y0: 0, y1: 8.3 },
   },
 };
 const lookup = buildCategoryLookup(TABLE);
@@ -93,6 +102,36 @@ test('placed counts pieces, not the rects a path expands into', () => {
   const scene = buildIsoScene(entities, lookup, { pitch: 10 }, null);
   assert.equal(scene.placed, 3);
   assert.ok(scene.boxes.length > scene.placed, 'bridges add rects beyond the pieces');
+});
+
+test('structure is clamped to one storey, so wall tops stay level', () => {
+  // A window piece's collider swallows the arch above the opening (7.9 m
+  // against a plain wall's 5 m) and dips below the floor, which extruded
+  // literally turned a windowed wall into battlements.
+  const scene = buildIsoScene(
+    [ent('Wall', 0, 0), ent('WallWindow', 10, 0)], lookup, { pitch: 10 }, null,
+  );
+  const wall = boxFor(scene, 'Wall');
+  const win = boxFor(scene, 'WallWindow');
+  assert.equal(win.h, wall.h, 'same height as the wall beside it');
+  assert.equal(win.by, wall.by, 'and sits on the same floor');
+  assert.equal(win.by + win.h, wall.by + wall.h, 'so the tops are level');
+});
+
+test('decor and stations are capped at the storey too, but plants are not', () => {
+  const scene = buildIsoScene(
+    [ent('Banner', 0, 0), ent('Tree', 40, 40)], lookup, {}, null,
+  );
+  // A 12 m collider on a wall ornament is clearance, not an object.
+  assert.equal(boxFor(scene, 'Banner').h, 5);
+  // A tree is genuinely taller than the wall.
+  assert.equal(boxFor(scene, 'Tree').h, 8.3);
+});
+
+test('structure shorter than a storey keeps its height', () => {
+  // The clamp trims overshoot only — a railing is genuinely short.
+  const scene = buildIsoScene([ent('LowRail', 0, 0)], lookup, {}, null);
+  assert.equal(boxFor(scene, 'LowRail').h, 1.5);
 });
 
 test('wallHeightScale only touches walls', () => {

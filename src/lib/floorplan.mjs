@@ -778,7 +778,7 @@ function modalPhase(vals, pitch) {
  *
  * @returns {(e: object, cls: object) => [number, number]} tilePos mapper
  */
-function makeStructureSnap(entities, lookup, pitch, passes) {
+export function makeStructureSnap(entities, lookup, pitch, passes, snapCategories = STRUCTURE_CATEGORIES) {
   if (!pitch) return (e) => e.tilePos;
 
   // Cross axis: a piece running along X is snapped in Z, and vice versa.
@@ -797,7 +797,7 @@ function makeStructureSnap(entities, lookup, pitch, passes) {
   const snap = (v, phase) => Math.round((v - phase) / pitch) * pitch + phase;
 
   return (e, cls) => {
-    if (!STRUCTURE_CATEGORIES.has(cls.id)) return e.tilePos;
+    if (!snapCategories.has(cls.id)) return e.tilePos;
     return swapsWidthDepth(e.rot)
       ? [snap(e.tilePos[0], phaseX), e.tilePos[1]]
       : [e.tilePos[0], snap(e.tilePos[1], phaseZ)];

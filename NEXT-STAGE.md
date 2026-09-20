@@ -80,11 +80,15 @@ now 2-tile wall.
   `validate-pr.yml` already gates `builds/**` on PRs. Maybe a PR template.
 - **SVG fallback parity**: per-floor SVG slices still cut stairs by height;
   could reuse the viewer's whole-flight logic.
-- **Iso follow-ups**: stair pieces carry a zero-height collider, so flights
-  render flat instead of as ramps; near-side walls still occlude the rooms
-  behind them (per-floor selection is the workaround; a near-quadrant cull or
-  a cutaway toggle would help — `buildIsoScene` already takes
-  `wallHeightScale`).
+- **Iso follow-ups**: stairs are drawn as a low platform (`STAIR_PLATFORM_M`)
+  because a full-cell piece at collider height is a solid 5 m block and a
+  flight becomes a wall of cubes; the real fix is a stepped ramp, and
+  `detectStairRuns` already knows each flight's cells and direction to build
+  one from. Near-side walls still occlude the rooms behind them — that's
+  geometrically correct (a 5 m wall hides ~1.7 cells of floor at this camera
+  angle), which is why dollhouse views cut walls down; `buildIsoScene` takes
+  `wallHeightScale` for that, but at 0.5 the wall line stops reading as walls,
+  so the default stays at true height and per-floor selection is the way in.
 - **Build-time iso renders** would give card thumbnails and per-entry OG
   images for entries without good screenshots (`buildIsoScene` is pure, so a
   Node script can rasterize it with sharp the same way the SVG path does).
