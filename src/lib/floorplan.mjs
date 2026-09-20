@@ -129,9 +129,39 @@ export const FALLBACK_Y1 = 1;
 // Doors carry a chunky ~4×4 clearance collider, which renders as a fat square
 // straddling the wall. We instead draw them as a slim bar — full length along
 // the wall, this thin across — so a doorway reads as an opening in the wall
-// line rather than a block. Slightly thicker than a 1-tile wall so the door
-// colour stays legible on top of it.
-export const DOOR_THICKNESS = 1.5;
+// line rather than a block. In tile units, and a shade thicker than the 2-tile
+// (1 m) wall it sits in so the door colour stays legible on top of it.
+export const DOOR_THICKNESS = 3;
+
+// Tile units per world metre.
+//
+// `tilePos` is NOT in metres: across the sample builds, one tilePos step is
+// exactly 0.5 m of world position (verified over 2048 entity pairs), and the
+// detected placement pitch of 10 tiles matches the 5 m castle cell. The prefab
+// table's `w`/`d`, by contrast, come straight off the collider AABB in metres
+// (see deriveFootprint in scripts/build-render-prefabs.mjs) — a 5 m wall is
+// w:5, which is 10 tiles long.
+//
+// Both renderers convert with this constant, but over different sets:
+//   - the isometric view applies it to everything (it's a massing model, so a
+//     piece's true volume is the point)
+//   - buildPanel applies it to STRUCTURE_CATEGORIES only (see below)
+export const TILES_PER_METRE = 2;
+
+// Categories drawn at their true size in the plan.
+//
+// These are the pieces that tile edge to edge, so half scale showed up as a
+// defect rather than a style: a 5 m wall drawn 5 tiles long on a 10-tile pitch
+// left a gap after every segment, turning a wall run into a dashed line, and
+// the 1 m pillars at the joints bulged outside it instead of closing them.
+//
+// Everything else keeps the table's metre figures as a compact symbol.
+// Workstations, storage and coffins carry clearance colliders rather than
+// visual footprints, and they paint after the walls (see LAYER_ORDER), so
+// drawing them at true size buries the structure they sit against. Pavement
+// and carpet stay thin on purpose too: a ribbon should read as the path it is
+// in game, not as a filled cell.
+export const STRUCTURE_CATEGORIES = new Set(['wall', 'fence', 'door']);
 
 // V Rising's castle build grid: each floor is 5 m tall. Slice bands are
 // (floor_y, floor_y + FLOOR_HEIGHT_M). Bands below are derived from the
@@ -551,24 +581,38 @@ export function detectStairRuns(entities, lookup, pitch) {
  *   skippedByBand: number
  * }}
  */
-export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
-  const layers = new Map();
-  for (const id of LAYER_ORDER) layers.set(id, new Map());
-  const counts = new Map();
-  const unknownSample = new Set();
-  let placed = 0;
-  let unknown = 0;
-  let skippedNoTile = 0;
-  let skippedByBand = 0;
-
+/**
+ * Build the "does this entity belong in the current view?" predicate shared by
+ * the plan and isometric renderers.
+ *
+ * Y-band filtering:
+ *
+ * 'center' mode (the SVG renderer's mode): closed-open band semantics on the
+ * entity's center Y. Why center rather than overlap:
+ *   - A floor tile (y1 - y0 ~= 0.02 m) sitting at pos.y = 10 has its center at
+ *     10.01, which lands cleanly in band [10, 15). An overlap test would either
+ *     drop it (epsilon too strict) or double-count it into [5, 10) (epsilon too
+ *     loose).
+ *   - A wall (5 m tall) at pos.y = 10 has its center at 12.5, which lands in
+ *     [10, 15) — its own floor, not the one below.
+ *   - Stair pieces split into Lower/Upper variants in the game data; each
+ *     flight's center sits in its own floor band, so transitions read naturally
+ *     without artificial double-rendering.
+ *
+ * 'overlap' mode: keep the entity if its vertical extent crosses the band.
+ * Right for a continuous slider — entities don't pop in/out at their centers as
+ * the slider moves.
+ *
+ * `stairCells` bypasses the band for stairs, so a whole staircase shows on the
+ * floor it rises from instead of being sliced in half.
+ *
+ * @param {object|null} yFilter
+ * @param {Set<string>|null} stairCells
+ * @returns {(entity: object, cls: object) => boolean}
+ */
+export function makeEntityFilter(yFilter, stairCells = null) {
   const filterMode = yFilter ? (yFilter.mode ?? 'center') : null;
-  const stairCells = opts.stairCells ?? null;
-  // Per-entity hit rects for hover tooltips (not deduped — keeps prefab names).
-  const hits = opts.collectHits ? [] : null;
-
-  // Does an entity survive the current Y / stairCells filter? Pure (no
-  // counters) so the ribbon pre-pass can reuse it without affecting stats.
-  const passes = (e, cls) => {
+  return (e, cls) => {
     if (cls.id === 'stairs' && stairCells) {
       return stairCells.has(`${e.tilePos[0]},${e.tilePos[1]}`);
     }
@@ -585,50 +629,204 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       ? (eMin >= yFilter.y0 - SLICE_EDGE_EPS && eMin <= yFilter.y1 + SLICE_EDGE_EPS)
       : (eMax > yFilter.y0 && eMin < yFilter.y1);
   };
+}
 
-  // Pre-pass for ribbon (pavement/carpet) rendering. The raw tilePos data is
-  // noisy — pieces on a straight path jitter ±1 tile in spacing and step ±1
-  // sideways — which makes naive bridging wobble. So we SNAP each ribbon piece
-  // to a clean grid (the category's dominant phase) before rendering: paths
-  // become uniform straight lines, neighbours sit exactly one pitch apart, and
-  // junctions line up. ribbonOcc holds the snapped occupancy; ribbonPhase the
-  // per-category [phaseX, phaseZ]; snapTile does the snapping (shared with the
-  // render loop).
-  const ribbonPitch = geom.pitch || 0;
-  const ribbonPhase = new Map();
-  const ribbonOcc = new Map();
+/**
+ * Build the pavement/carpet ribbons for a view, in TILE space.
+ *
+ * Shared by the plan and the isometric view so a path has one shape in both.
+ * Returns rects as {x0, z0, w, d} with x0/z0 the minimum corner in tile
+ * coordinates; callers map that into their own projection.
+ *
+ * Two passes, because the raw tilePos data is noisy — pieces on a straight
+ * path jitter ±1 tile in spacing and step ±1 sideways:
+ *
+ *  1. SNAP each piece to a clean grid (the category's dominant phase), so
+ *     paths become uniform straight lines, neighbours sit exactly one pitch
+ *     apart, and junctions line up. `occ` records the snapped occupancy.
+ *  2. Emit the piece at its snapped position, then bridge each of its
+ *     intrinsic arms — read from the junction shape (straight/corner/tee/
+ *     cross) + rotation, NOT from neighbour positions — to the nearest
+ *     occupied neighbour 1–2 cells away in that direction.
+ *
+ * Reading arms from the piece TYPE stops a T rendering as a cross (a parallel
+ * path can't add a phantom 4th arm). Allowing a 2-cell reach connects across a
+ * doorway or bare wall opening; the bridge paints under walls, so it's hidden
+ * except at the opening.
+ *
+ * Ribbons keep the prefab table's raw w/d — half a cell — rather than filling
+ * their cell. A path in game is a walkway across the tile, not the whole tile,
+ * and the bridges are what make it read as a connected route.
+ *
+ * @param {Array} entities
+ * @param {ReturnType<typeof buildCategoryLookup>} lookup
+ * @param {number} pitch placement grid pitch in tiles (0/null disables)
+ * @param {(e: object, cls: object) => boolean} passes visibility predicate
+ * @returns {{ rects: Array<{x0:number,z0:number,w:number,d:number,layerId:string,prefab:string}>,
+ *             counts: Map<string, number>, placed: number }}
+ */
+export function buildRibbonRects(entities, lookup, pitch, passes) {
+  const rects = [];
+  const seen = new Set();
+  const counts = new Map();
+  let placed = 0;
+  if (!pitch) return { rects, counts, placed };
+
   const snapTile = (v, phase) =>
-    Math.round((v - phase) / ribbonPitch) * ribbonPitch + phase;
-  if (ribbonPitch) {
-    const rawByCat = new Map();
-    for (const e of entities ?? []) {
-      if (!e.tilePos) continue;
-      const cls = lookup.lookup(e.prefab);
-      if (!RIBBON_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
-      let list = rawByCat.get(cls.id);
-      if (!list) { list = []; rawByCat.set(cls.id, list); }
-      list.push(e.tilePos);
-    }
-    const modePhase = (vals) => {
-      const counts = new Map();
-      let best = 0, bestN = -1;
-      for (const v of vals) {
-        const r = ((v % ribbonPitch) + ribbonPitch) % ribbonPitch;
-        const n = (counts.get(r) ?? 0) + 1;
-        counts.set(r, n);
-        if (n > bestN) { bestN = n; best = r; }
-      }
-      return best;
-    };
-    for (const [cat, list] of rawByCat) {
-      const phx = modePhase(list.map(t => t[0]));
-      const phz = modePhase(list.map(t => t[1]));
-      ribbonPhase.set(cat, [phx, phz]);
-      const set = new Set();
-      for (const t of list) set.add(`${snapTile(t[0], phx)},${snapTile(t[1], phz)}`);
-      ribbonOcc.set(cat, set);
-    }
+    Math.round((v - phase) / pitch) * pitch + phase;
+
+  // Pass 1: per-category dominant phase + snapped occupancy.
+  const rawByCat = new Map();
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    const cls = lookup.lookup(e.prefab);
+    if (!RIBBON_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
+    let list = rawByCat.get(cls.id);
+    if (!list) { list = []; rawByCat.set(cls.id, list); }
+    list.push(e.tilePos);
   }
+  const phases = new Map();
+  const occ = new Map();
+  for (const [cat, list] of rawByCat) {
+    const phx = modalPhase(list.map(t => t[0]), pitch);
+    const phz = modalPhase(list.map(t => t[1]), pitch);
+    phases.set(cat, [phx, phz]);
+    const set = new Set();
+    for (const t of list) set.add(`${snapTile(t[0], phx)},${snapTile(t[1], phz)}`);
+    occ.set(cat, set);
+  }
+
+  // Pass 2: base tile + arm bridges.
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    const cls = lookup.lookup(e.prefab);
+    if (!RIBBON_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
+
+    const cells = occ.get(cls.id);
+    const [phx, phz] = phases.get(cls.id) ?? [0, 0];
+    const tx = snapTile(e.tilePos[0], phx);
+    const tz = snapTile(e.tilePos[1], phz);
+    const rw = cls.w;
+    const rd = cls.d;
+    // Carry the piece's world Y so a 3D caller can lay the ribbon on its floor.
+    const y = (e.pos?.[1] ?? 0) + cls.y0;
+    // Two neighbours bridge toward each other and produce the same rect, so
+    // emit each one once. (The plan used to absorb this in its own rect map;
+    // doing it here means every caller gets the same path, and the iso view
+    // doesn't fill the same box twice.)
+    const push = (x0, z0, w, d) => {
+      const key = `${x0},${z0},${w},${d},${y},${cls.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      rects.push({ x0, z0, w, d, y, layerId: cls.id, prefab: e.prefab });
+    };
+
+    push(tx - rw / 2, tz - rd / 2, rw, rd);
+
+    for (const [dx, dz] of ribbonArms(cls.shape, e.rot?.[1] ?? 0)) {
+      let reach = 0;
+      for (let k = 1; k <= 2; k++) {
+        const nk = dx !== 0 ? `${tx + dx * k * pitch},${tz}` : `${tx},${tz + dz * k * pitch}`;
+        if (cells && cells.has(nk)) { reach = k; break; }
+      }
+      if (!reach) continue;
+      const len = reach * pitch;
+      if (dx !== 0) {
+        push(dx > 0 ? tx : tx - len, tz - rd / 2, len, rd);
+      } else {
+        push(tx - rw / 2, (dz > 0 ? tz + len : tz) - len, rw, len);
+      }
+    }
+
+    placed++;
+    counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
+  }
+
+  return { rects, counts, placed };
+}
+
+/** Most common value of `vals` modulo `pitch`. */
+function modalPhase(vals, pitch) {
+  const tally = new Map();
+  let best = 0;
+  let bestN = -1;
+  for (const v of vals) {
+    const r = ((v % pitch) + pitch) % pitch;
+    const n = (tally.get(r) ?? 0) + 1;
+    tally.set(r, n);
+    if (n > bestN) { bestN = n; best = r; }
+  }
+  return best;
+}
+
+/**
+ * Snap structural pieces onto one wall line.
+ *
+ * V Rising anchors a wall on its face rather than its centre-line, so the same
+ * piece flipped 180° has a pivot one tile (0.5 m) away. Drawn as-is, a wall
+ * run visibly kinks sideways wherever the facing flips — in the samples,
+ * horizontal walls sit at z ≡ 0 facing one way and z ≡ 9 facing the other.
+ *
+ * So we snap each piece's CROSS-axis coordinate (the thickness direction) to
+ * the dominant phase for its orientation. Which of the two phases wins doesn't
+ * matter much — either way the line is straight, and it's off by at most half
+ * a metre, which is well inside what a diagram at 2-8 px per tile can show.
+ *
+ * The along-axis is deliberately left alone: the same flip shifts it by a tile
+ * too, but that lands as a one-tile seam between segments, and the pillars that
+ * sit on every joint already cover it.
+ *
+ * @returns {(e: object, cls: object) => [number, number]} tilePos mapper
+ */
+function makeStructureSnap(entities, lookup, pitch, passes) {
+  if (!pitch) return (e) => e.tilePos;
+
+  // Cross axis: a piece running along X is snapped in Z, and vice versa.
+  const alongZ = [];
+  const alongX = [];
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    const cls = lookup.lookup(e.prefab);
+    if (!STRUCTURE_CATEGORIES.has(cls.id) || !passes(e, cls)) continue;
+    (swapsWidthDepth(e.rot) ? alongX : alongZ).push(
+      swapsWidthDepth(e.rot) ? e.tilePos[0] : e.tilePos[1],
+    );
+  }
+  const phaseZ = modalPhase(alongZ, pitch);
+  const phaseX = modalPhase(alongX, pitch);
+  const snap = (v, phase) => Math.round((v - phase) / pitch) * pitch + phase;
+
+  return (e, cls) => {
+    if (!STRUCTURE_CATEGORIES.has(cls.id)) return e.tilePos;
+    return swapsWidthDepth(e.rot)
+      ? [snap(e.tilePos[0], phaseX), e.tilePos[1]]
+      : [e.tilePos[0], snap(e.tilePos[1], phaseZ)];
+  };
+}
+
+export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
+  const layers = new Map();
+  for (const id of LAYER_ORDER) layers.set(id, new Map());
+  const counts = new Map();
+  const unknownSample = new Set();
+  let placed = 0;
+  let unknown = 0;
+  let skippedNoTile = 0;
+  let skippedByBand = 0;
+
+  const stairCells = opts.stairCells ?? null;
+  // Per-entity hit rects for hover tooltips (not deduped — keeps prefab names).
+  const hits = opts.collectHits ? [] : null;
+
+  // Does an entity survive the current Y / stairCells filter? Pure (no
+  // counters) so the ribbon pre-pass can reuse it without affecting stats.
+  const passes = makeEntityFilter(yFilter, stairCells);
+
+  const ribbonPitch = geom.pitch || 0;
+  // Ribbons and the structural wall line are both built from shared helpers,
+  // so the isometric view draws the same paths and the same straight walls.
+  const ribbon = buildRibbonRects(entities, lookup, ribbonPitch, passes);
+  const snapStructure = makeStructureSnap(entities, lookup, ribbonPitch, passes);
 
   // Emit one rect (tile-unit w/d at pixel sx/sy) into a bucket + hit list.
   const pushRect = (bucket, layerId, prefab, sx, sy, wTiles, dTiles) => {
@@ -644,86 +842,24 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       if (unknownSample.size < 16) unknownSample.add(e.prefab);
     }
 
-    // Y-band filtering.
-    //
-    // 'center' mode (the SVG renderer's mode): closed-open band semantics on
-    // the entity's center Y. Why center rather than overlap:
-    //   - A floor tile (y1 - y0 ~= 0.02 m) sitting at pos.y = 10 has its
-    //     center at 10.01, which lands cleanly in band [10, 15). An overlap
-    //     test would either drop it (epsilon too strict) or double-count it
-    //     into [5, 10) (epsilon too loose).
-    //   - A wall (5 m tall) at pos.y = 10 has its center at 12.5, which
-    //     lands in [10, 15) — its own floor, not the one below.
-    //   - Stair pieces split into Lower/Upper variants in the game data; each
-    //     flight's center sits in its own floor band, so transitions read
-    //     naturally without artificial double-rendering.
-    //
-    // 'overlap' mode: keep the entity if its vertical extent crosses the
-    // band. Right for a continuous slider — entities don't pop in/out at
-    // their centers as the slider moves.
-    //
-    // Y-band / stairCells filtering (see `passes`). The 'center' mode is the
-    // SVG renderer's closed-open band test; 'overlap' is for the slider;
-    // stairCells shows a whole staircase on its origin floor (see the
-    // stairCells option). Pavement/carpet are flat (center ~0.5 m) so they sit
-    // on the ground band like floors.
+    // Y-band / stairCells filtering — see makeEntityFilter for the band
+    // semantics. Pavement/carpet are flat (center ~0.5 m) so they sit on the
+    // ground band like floors.
     if (!passes(e, cls)) { skippedByBand++; continue; }
 
     const layerId = layers.has(cls.id) ? cls.id : UNKNOWN_CATEGORY;
     const bucket = layers.get(layerId);
 
-    if (ribbonPitch && RIBBON_CATEGORIES.has(cls.id)) {
-      // Shape-aware connected ribbon on the snapped grid. The piece is drawn at
-      // its snapped position (removing the raw ±1 jitter/jog), and each of its
-      // intrinsic arms — read from junction shape (straight/corner/tee/cross) +
-      // rotation, NOT neighbour positions — bridges to the nearest occupied
-      // snapped neighbour 1–2 cells away in that direction.
-      //
-      // Reading arms from the piece TYPE stops a T rendering as a cross (a
-      // parallel path can't add a phantom 4th arm). Snapping makes every join a
-      // clean straight line. Allowing a 2-cell reach connects across a doorway
-      // or bare wall opening; the bridge paints under walls, so it's hidden
-      // except at the opening.
-      const occ = ribbonOcc.get(cls.id);
-      const [phx, phz] = ribbonPhase.get(cls.id) ?? [0, 0];
-      const p = ribbonPitch;
-      const tx = snapTile(e.tilePos[0], phx);
-      const tz = snapTile(e.tilePos[1], phz);
-      const rw = cls.w;
-      const rd = cls.d;
-      // Base tile.
-      pushRect(bucket, layerId, e.prefab,
-        (tx - rw / 2 - geom.minTX) * geom.cell,
-        (geom.maxTZ - tz - rd / 2) * geom.cell, rw, rd);
-      // Arm bridges, only in the shape's allowed directions.
-      for (const [dx, dz] of ribbonArms(cls.shape, e.rot?.[1] ?? 0)) {
-        let cells = 0;
-        for (let k = 1; k <= 2; k++) {
-          const nk = dx !== 0 ? `${tx + dx * k * p},${tz}` : `${tx},${tz + dz * k * p}`;
-          if (occ && occ.has(nk)) { cells = k; break; }
-        }
-        if (!cells) continue;
-        const len = cells * p;
-        if (dx !== 0) {
-          const left = dx > 0 ? tx : tx - len;
-          pushRect(bucket, layerId, e.prefab,
-            (left - geom.minTX) * geom.cell,
-            (geom.maxTZ - tz - rd / 2) * geom.cell, len, rd);
-        } else {
-          const zHigh = dz > 0 ? tz + len : tz;
-          pushRect(bucket, layerId, e.prefab,
-            (tx - rw / 2 - geom.minTX) * geom.cell,
-            (geom.maxTZ - zHigh) * geom.cell, rw, len);
-        }
-      }
+    // Ribbons were built up front by buildRibbonRects (they need a whole-view
+    // occupancy pass before any one piece can be drawn); their rects and
+    // counts are merged in below.
+    if (ribbonPitch && RIBBON_CATEGORIES.has(cls.id)) continue;
 
-      placed++;
-      counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
-      continue;
-    }
-
-    let w = cls.w;
-    let d = cls.d;
+    // Structure is drawn at true size, everything else at the table's metre
+    // figures (see STRUCTURE_CATEGORIES for why the plan splits them).
+    const structural = STRUCTURE_CATEGORIES.has(cls.id);
+    let w = structural ? cls.w * TILES_PER_METRE : cls.w;
+    let d = structural ? cls.d * TILES_PER_METRE : cls.d;
     if (geom.pitch && FULL_CELL_CATEGORIES.has(cls.id)) {
       // Foundation-style tile: render at the placement grid cell so floors
       // form a continuous surface. Square cell, so rotation is a no-op. Never
@@ -739,13 +875,29 @@ export function buildPanel(entities, lookup, geom, yFilter, opts = {}) {
       [w, d] = [d, w];
     }
 
-    const sx = (e.tilePos[0] - w / 2 - geom.minTX) * geom.cell;
-    const sy = (geom.maxTZ - e.tilePos[1] - d / 2) * geom.cell;
+    // Structural pieces snap onto one wall line (see makeStructureSnap);
+    // everything else draws where it sits.
+    const [tx, tz] = snapStructure(e, cls);
+    const sx = (tx - w / 2 - geom.minTX) * geom.cell;
+    const sy = (geom.maxTZ - tz - d / 2) * geom.cell;
     pushRect(bucket, layerId, e.prefab, sx, sy, w, d);
 
     placed++;
     counts.set(cls.id, (counts.get(cls.id) ?? 0) + 1);
   }
+
+  // Merge in the ribbons, mapping their tile-space rects into panel pixels.
+  // z0 is the minimum Z corner, and panel Y is flipped (north-up), so the top
+  // edge comes from z0 + d.
+  for (const r of ribbon.rects) {
+    const bucket = layers.get(r.layerId) ?? layers.get(UNKNOWN_CATEGORY);
+    pushRect(bucket, r.layerId, r.prefab,
+      (r.x0 - geom.minTX) * geom.cell,
+      (geom.maxTZ - (r.z0 + r.d)) * geom.cell,
+      r.w, r.d);
+  }
+  for (const [id, n] of ribbon.counts) counts.set(id, (counts.get(id) ?? 0) + n);
+  placed += ribbon.placed;
 
   return { layers, counts, placed, unknown, unknownSample, skippedNoTile, skippedByBand, hits };
 }

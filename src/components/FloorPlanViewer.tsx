@@ -1,7 +1,6 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
-  buildCategoryLookup,
   buildPanel,
   computePanelLayout,
   detectFloors,
@@ -15,11 +14,12 @@ import {
   type PanelHit,
   type PanelLayout,
   type PanelResult,
-  type PrefabTable,
+  type PrefabCategory,
   type Schematic,
   type StairRun,
   type YFilter,
 } from '../lib/floorplan';
+import { hydrateViewModel, type ViewModel } from '../lib/view-model';
 import {
   buildPalette,
   clampTransform,
@@ -34,19 +34,33 @@ import {
   type FloorPlanTheme,
   type Transform,
 } from '../lib/floorplan-canvas';
+import {
+  buildIsoScene,
+  computeIsoLayout,
+  type IsoLayout,
+  type IsoScene,
+} from '../lib/isoplan';
+import {
+  configureCanvasForIso,
+  drawIsoScene,
+  hitTestIso,
+  ISO_THEMES,
+  DEFAULT_ISO_THEME,
+} from '../lib/isoplan-canvas';
 
 interface Props {
-  /** URL to the .schematic JSON file (served from /entry-assets/<slug>/). */
-  schematicUrl: string;
-  /** URL to render-prefabs.json (served once from /data/). */
-  prefabTableUrl: string;
+  /**
+   * URL to the build's view.json — the slim render payload written at build
+   * time by src/lib/view-model.mjs (served from /entry-assets/<slug>/).
+   */
+  viewModelUrl: string;
   /** Used for aria-label and the canvas's accessible name. */
   entryTitle: string;
 }
 
 interface LoadedData {
   schematic: Schematic;
-  table: PrefabTable;
+  categories: PrefabCategory[];
   lookup: CategoryLookup;
   layout: PanelLayout;
   geom: PanelGeom;
@@ -67,6 +81,13 @@ type Selection =
   | { kind: 'floor'; index: number };
 
 const ALL: Selection = { kind: 'all' };
+
+/**
+ * Which projection is on screen. Both read the same entities through the same
+ * filter; they differ only in how a piece is drawn — a flat rect at its
+ * footprint, or a box extruded to its collider height.
+ */
+type Mode = 'plan' | 'iso';
 
 // Fallback grid spacing when a build has too few floor tiles to detect a
 // pitch — 10 tiles is the common V Rising castle cell.
@@ -92,18 +113,20 @@ function toYFilter(sel: Selection, bands: FloorBand[]): YFilter | null {
 }
 
 /**
- * FloorPlanViewer — interactive top-down floor plan, rendered on Canvas.
+ * FloorPlanViewer — interactive build viewer, rendered on Canvas.
  *
- * Draws the merged view at the same scale as the static SVG renderer (shared
- * via src/lib/floorplan.mjs), with discrete per-floor buttons and a grid
- * aligned to the building's placement pitch.
+ * Two projections over one set of entities:
+ *   - Plan: top-down, at the same scale as the static SVG renderer (shared via
+ *     src/lib/floorplan.mjs), with a grid aligned to the placement pitch.
+ *   - Isometric: the same pieces extruded to their collider heights
+ *     (src/lib/isoplan.mjs), which reads as a massing model.
+ * Floor buttons, layer toggles, pan/zoom and hover work the same in both.
  *
  * Renders as a Preact island with `client:only="preact"` from the entry
  * page; the page also emits a `<noscript><img/></noscript>` fallback.
  */
 export default function FloorPlanViewer({
-  schematicUrl,
-  prefabTableUrl,
+  viewModelUrl,
   entryTitle,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -113,8 +136,15 @@ export default function FloorPlanViewer({
   const hitsRef = useRef<PanelHit[] | null>(null);
   const transformRef = useRef<Transform>(IDENTITY_TRANSFORM);
   const hiddenRef = useRef<Set<string>>(new Set());
+  // The pointer handler is attached once per load, so mode-dependent values it
+  // needs (which surface it's clamping against, what's under the cursor) come
+  // through refs rather than the closure.
+  const isoRef = useRef<IsoScene | null>(null);
+  const isoLayoutRef = useRef<IsoLayout | null>(null);
+  const surfaceRef = useRef<{ drawW: number; drawH: number }>({ drawW: 1, drawH: 1 });
   const [data, setData] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>('plan');
   const [selection, setSelection] = useState<Selection>(ALL);
   // Category ids the user has toggled off in the legend.
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -130,7 +160,9 @@ export default function FloorPlanViewer({
       return next;
     });
 
-  // Fetch + parse both inputs in parallel on mount.
+  // Fetch the view model on mount. One request, already classified: the
+  // geometry passes below run on the hydrated entities exactly as they used
+  // to run on the raw .schematic.
   useEffect(() => {
     let cancelled = false;
     setData(null);
@@ -140,19 +172,12 @@ export default function FloorPlanViewer({
     setTransform(IDENTITY_TRANSFORM);
     (async () => {
       try {
-        const [schemaRes, tableRes] = await Promise.all([
-          fetch(schematicUrl),
-          fetch(prefabTableUrl),
-        ]);
-        if (!schemaRes.ok) throw new Error(`schematic ${schemaRes.status}`);
-        if (!tableRes.ok)  throw new Error(`prefab table ${tableRes.status}`);
-        const [schematic, table] = await Promise.all([
-          schemaRes.json() as Promise<Schematic>,
-          tableRes.json()  as Promise<PrefabTable>,
-        ]);
+        const res = await fetch(viewModelUrl);
+        if (!res.ok) throw new Error(`view model ${res.status}`);
+        const vm = await res.json() as ViewModel;
         if (cancelled) return;
 
-        const lookup = buildCategoryLookup(table);
+        const { schematic, lookup } = hydrateViewModel(vm);
         const layout = computePanelLayout(schematic);
         const pitch  = detectGridPitch(schematic.entities, lookup);
         const geom: PanelGeom = {
@@ -162,17 +187,17 @@ export default function FloorPlanViewer({
         const stairRuns = detectStairRuns(schematic.entities, lookup, pitch);
         const yMin = schematic.boundingBox?.min?.[1] ?? 0;
 
-        setData({ schematic, table, lookup, layout, geom, bands, stairRuns, yMin });
+        setData({ schematic, categories: vm.categories, lookup, layout, geom, bands, stairRuns, yMin });
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
       }
     })();
     return () => { cancelled = true; };
-  }, [schematicUrl, prefabTableUrl]);
+  }, [viewModelUrl]);
 
   const palette = useMemo(
-    () => (data ? buildPalette(data.table) : null),
+    () => (data ? buildPalette(data.categories) : null),
     [data],
   );
 
@@ -198,51 +223,97 @@ export default function FloorPlanViewer({
     return data.stairRuns.filter(r => floorOf(r.minY) === selection.index);
   }, [data, selection]);
 
+  // Stair cells for the current selection — shared by both renderers so a
+  // whole flight lands on its origin floor either way.
+  const stairCells = useMemo(
+    () => (selection.kind === 'all'
+      ? undefined
+      : new Set(floorRuns.flatMap(r => r.cells.map(c => `${c.x},${c.z}`)))),
+    [selection, floorRuns],
+  );
+
   // Bucket entities for the current selection. Non-stair categories slice by
   // height band; stairs are shown by run-assignment via stairCells so whole
   // flights land on their origin floor. buildPanel is a single pass — cheap
   // enough to redo on every button press.
   const panel: PanelResult | null = useMemo(() => {
-    if (!data) return null;
-    const stairCells =
-      selection.kind === 'all'
-        ? undefined
-        : new Set(floorRuns.flatMap(r => r.cells.map(c => `${c.x},${c.z}`)));
+    if (!data || mode !== 'plan') return null;
     return buildPanel(
       data.schematic.entities, data.lookup, data.geom,
       toYFilter(selection, data.bands),
       { stairCells, collectHits: true },
     );
-  }, [data, selection, floorRuns]);
+  }, [data, mode, selection, stairCells]);
+
+  // Same entities, same filter, extruded instead of flattened.
+  const iso: IsoScene | null = useMemo(() => {
+    if (!data || mode !== 'iso') return null;
+    return buildIsoScene(
+      data.schematic.entities, data.lookup, data.geom,
+      toYFilter(selection, data.bands),
+      { stairCells },
+    );
+  }, [data, mode, selection, stairCells]);
+
+  const isoLayout = useMemo(
+    () => (iso ? computeIsoLayout(iso, { targetWidth: 800, maxCell: 6 }) : null),
+    [iso],
+  );
 
   // Arrows come from the same runs as the fill, so they always sit on stairs.
   const stairRuns = floorRuns;
 
+  // The surface the transform is clamped against, per mode.
+  const surface = mode === 'iso'
+    ? (isoLayout ?? { drawW: 1, drawH: 1 })
+    : (data?.layout ?? { drawW: 1, drawH: 1 });
+
   // Keep refs current for the native pointer handler (attached once per load).
   hitsRef.current = panel?.hits ?? null;
+  isoRef.current = iso;
+  isoLayoutRef.current = isoLayout;
+  surfaceRef.current = { drawW: surface.drawW, drawH: surface.drawH };
   transformRef.current = transform;
   hiddenRef.current = hidden;
 
-  // Size the canvas once per loaded schematic (layout doesn't change with the
-  // selection — only which rects get painted does).
+  // Size the canvas whenever the drawn surface changes. In plan mode that's
+  // once per load (the layout is selection-independent); in iso mode the
+  // extent depends on what's visible, so it follows the scene.
   useEffect(() => {
-    if (!data || !canvasRef.current) return;
-    configureCanvasForLayout(canvasRef.current, data.layout);
-  }, [data]);
+    if (!canvasRef.current) return;
+    if (mode === 'iso') {
+      if (isoLayout) configureCanvasForIso(canvasRef.current, isoLayout);
+    } else if (data) {
+      configureCanvasForLayout(canvasRef.current, data.layout);
+    }
+  }, [data, mode, isoLayout]);
 
-  // Repaint whenever the bucketed panel, theme, hidden set, or transform
-  // changes. Only drawPanel re-runs on pan/zoom — the panel buckets are
-  // memoized and unaffected — so dragging stays cheap.
+  // Switching projection changes the coordinate space, so a pan/zoom carried
+  // over would land somewhere arbitrary. Start each mode at fit.
+  useEffect(() => { setTransform(IDENTITY_TRANSFORM); }, [mode]);
+
+  // Repaint whenever the scene, theme, hidden set, or transform changes. Only
+  // the draw call re-runs on pan/zoom — the buckets and boxes are memoized and
+  // unaffected — so dragging stays cheap.
   useEffect(() => {
-    if (!panel || !data || !palette || !canvasRef.current) return;
+    if (!data || !palette || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
-    drawPanel(ctx, panel, data.layout, palette, theme, {
-      hiddenLayers: hidden,
-      stairRuns,
-      transform,
-    });
-  }, [panel, data, palette, theme, hidden, stairRuns, transform]);
+    if (mode === 'iso') {
+      if (!iso || !isoLayout) return;
+      drawIsoScene(ctx, iso, isoLayout, palette, ISO_THEMES[DEFAULT_ISO_THEME], {
+        hiddenLayers: hidden,
+        transform,
+      });
+    } else {
+      if (!panel) return;
+      drawPanel(ctx, panel, data.layout, palette, theme, {
+        hiddenLayers: hidden,
+        stairRuns,
+        transform,
+      });
+    }
+  }, [mode, panel, iso, isoLayout, data, palette, theme, hidden, stairRuns, transform]);
 
   // Pan/zoom: wheel zooms toward the cursor, one-pointer drag pans, two-pointer
   // pinch zooms + pans. Native listeners (not Preact props) so wheel can
@@ -250,7 +321,9 @@ export default function FloorPlanViewer({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data) return;
-    const { drawW, drawH } = data.layout;
+    // Read through the ref: the drawn surface changes with the mode (and, in
+    // iso, with the selection), while this handler is attached once.
+    const surf = () => surfaceRef.current;
     const pointers = new Map<number, { x: number; y: number }>();
     let lastDist: number | null = null;
     let lastMid: { x: number; y: number } | null = null;
@@ -259,28 +332,41 @@ export default function FloorPlanViewer({
       clientToCanvas(canvas, e.clientX, e.clientY);
 
     // Hover hit-test: map the cursor to content coords, find the topmost
-    // visible entity rect under it, and show its prefab name.
+    // visible piece under it, and show its prefab name. In plan mode "topmost"
+    // is the highest paint layer whose rect contains the point; in iso it's
+    // the last box painted there, which hitTestIso resolves by walking the
+    // scene front to back.
     const updateHover = (e: PointerEvent) => {
-      const hits = hitsRef.current;
-      if (!hits || !hits.length) { setHover(null); return; }
       const t = transformRef.current;
       const hiddenSet = hiddenRef.current;
       const s = at(e);
       const px = s.x / t.zoom + t.panX;
       const py = s.y / t.zoom + t.panY;
-      let best: PanelHit | null = null;
-      let bestRank = -1;
-      for (const h of hits) {
-        if (hiddenSet.has(h.layerId)) continue;
-        if (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h) {
-          const rank = LAYER_INDEX.get(h.layerId) ?? -1;
-          if (rank >= bestRank) { bestRank = rank; best = h; }
+
+      let prefab: string | null = null;
+      const isoScene = isoRef.current;
+      const isoLay = isoLayoutRef.current;
+      if (isoScene && isoLay) {
+        prefab = hitTestIso(isoScene, isoLay, px, py, hiddenSet)?.prefab ?? null;
+      } else {
+        const hits = hitsRef.current;
+        if (!hits || !hits.length) { setHover(null); return; }
+        let best: PanelHit | null = null;
+        let bestRank = -1;
+        for (const h of hits) {
+          if (hiddenSet.has(h.layerId)) continue;
+          if (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h) {
+            const rank = LAYER_INDEX.get(h.layerId) ?? -1;
+            if (rank >= bestRank) { bestRank = rank; best = h; }
+          }
         }
+        prefab = best?.prefab ?? null;
       }
-      if (!best) { setHover(null); return; }
+
+      if (!prefab) { setHover(null); return; }
       const wrap = canvas.parentElement;
       const rect = (wrap ?? canvas).getBoundingClientRect();
-      setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, text: humanizePrefab(best.prefab) });
+      setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, text: humanizePrefab(prefab) });
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -294,7 +380,7 @@ export default function FloorPlanViewer({
         const py = c.y / t.zoom + t.panY;
         return clampTransform(
           { zoom, panX: px - c.x / zoom, panY: py - c.y / zoom },
-          drawW, drawH,
+          surf().drawW, surf().drawH,
         );
       });
     };
@@ -321,7 +407,7 @@ export default function FloorPlanViewer({
         const dy = cur.y - prev.y;
         setTransform(t => clampTransform(
           { zoom: t.zoom, panX: t.panX - dx / t.zoom, panY: t.panY - dy / t.zoom },
-          drawW, drawH,
+          surf().drawW, surf().drawH,
         ));
       } else if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
@@ -337,7 +423,7 @@ export default function FloorPlanViewer({
             const py = mid.y / t.zoom + t.panY;
             return clampTransform(
               { zoom, panX: px - mid.x / zoom - dmx / zoom, panY: py - mid.y / zoom - dmy / zoom },
-              drawW, drawH,
+              surf().drawW, surf().drawH,
             );
           });
         }
@@ -377,27 +463,29 @@ export default function FloorPlanViewer({
   // Legend rows: one per non-empty category in the *current* view, most
   // common first (mirrors the SVG legend's ordering).
   const legend = useMemo(() => {
-    if (!data || !panel) return null;
-    const byId = new Map(data.table.categories.map(c => [c.id, c]));
+    const counts = mode === 'iso' ? iso?.counts : panel?.counts;
+    if (!data || !counts) return null;
+    const byId = new Map(data.categories.map(c => [c.id, c]));
     const rows: { id: string; label: string; color: string; count: number }[] = [];
-    for (const [id, count] of panel.counts.entries()) {
+    for (const [id, count] of counts.entries()) {
       if (!count) continue;
       const meta = byId.get(id);
       if (meta) rows.push({ id, label: meta.label, color: meta.color, count });
     }
     rows.sort((a, b) => b.count - a.count);
     return rows;
-  }, [data, panel]);
+  }, [data, mode, panel, iso]);
 
   if (error) {
     return (
       <div class="fpv fpv--error" role="alert">
-        <p>Couldn’t load the floor plan: {error}.</p>
+        <p>Couldn’t load this build: {error}.</p>
       </div>
     );
   }
 
-  if (!data || !panel) {
+  const scene = mode === 'iso' ? iso : panel;
+  if (!data || !scene) {
     return (
       <div class="fpv fpv--loading" aria-live="polite">
         <p class="muted">Loading floor plan…</p>
@@ -406,13 +494,15 @@ export default function FloorPlanViewer({
   }
 
   const hasFloors = data.bands.length > 0;
-  const hasStairArrows = stairRuns.some(r => r.path) && !hidden.has('stairs');
+  // Up-arrows are a plan-view symbol; in iso the flights read as ramps.
+  const hasStairArrows =
+    mode === 'plan' && stairRuns.some(r => r.path) && !hidden.has('stairs');
   const viewLabel =
     selection.kind === 'all' ? 'All floors' : data.bands[selection.index].label;
 
   // Zoom button: scale around the viewport center, clamped to bounds.
   const zoomBy = (factor: number) => setTransform(t => {
-    const { drawW, drawH } = data.layout;
+    const { drawW, drawH } = surface;
     const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, t.zoom * factor));
     const cx = t.panX + drawW / t.zoom / 2;
     const cy = t.panY + drawH / t.zoom / 2;
@@ -428,11 +518,25 @@ export default function FloorPlanViewer({
     <div class="fpv">
       <div class="fpv__head">
         <span class="fpv__title">{viewLabel}</span>
-        <span class="fpv__sub muted">{panel.placed} entities</span>
+        <span class="fpv__sub muted">{scene.placed} entities</span>
       </div>
 
-      {hasFloors && (
-        <div class="fpv__controls">
+      <div class="fpv__controls">
+        <div class="fpv__modes" role="group" aria-label="View">
+          {(['plan', 'iso'] as Mode[]).map(m => (
+            <button
+              type="button"
+              key={m}
+              class={`fpv__mode-btn${mode === m ? ' is-active' : ''}`}
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+            >
+              {m === 'plan' ? 'Plan' : 'Isometric'}
+            </button>
+          ))}
+        </div>
+
+        {hasFloors && (
           <div class="fpv__floors" role="group" aria-label="Floor">
             <button
               type="button"
@@ -455,14 +559,16 @@ export default function FloorPlanViewer({
               </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div class="fpv__canvas-wrap">
         <canvas
           ref={canvasRef}
           role="img"
-          aria-label={`Top-down floor plan of ${entryTitle}`}
+          aria-label={mode === 'iso'
+            ? `Isometric view of ${entryTitle}`
+            : `Top-down floor plan of ${entryTitle}`}
         />
         <div class="fpv__zoom" role="group" aria-label="Zoom">
           <button type="button" class="fpv__zoom-btn" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>+</button>

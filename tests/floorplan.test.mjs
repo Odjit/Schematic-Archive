@@ -18,6 +18,8 @@ import {
   ribbonArms,
   swapsWidthDepth,
   FULL_CELL_CATEGORIES,
+  DOOR_THICKNESS,
+  TILES_PER_METRE,
 } from '../src/lib/floorplan.mjs';
 
 // --- Minimal prefab table shared by the synthetic tests. -------------------
@@ -28,6 +30,8 @@ const TABLE = {
     { id: 'stairs',   label: 'Stairs',   color: '#c' },
     { id: 'servant',  label: 'Servant',  color: '#d' },
     { id: 'pavement', label: 'Pavement', color: '#e' },
+    { id: 'door',        label: 'Door',        color: '#f' },
+    { id: 'workstation', label: 'Workstation', color: '#g' },
     { id: 'other',    label: 'Other',    color: '#0' },
   ],
   prefabs: {
@@ -41,6 +45,8 @@ const TABLE = {
     Pavement_Straight:      { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
     Pavement_Cross_Section: { category: 'pavement', w: 5, d: 5, y0: 0, y1: 1 },
     Door:       { category: 'door', w: 4, d: 4, y0: -1, y1: 5 },
+    WallPillar: { category: 'wall', w: 1, d: 1, y0: 0, y1: 5 },
+    Forge:      { category: 'workstation', w: 4, d: 4, y0: 0, y1: 4 },
   },
 };
 const lookup = buildCategoryLookup(TABLE);
@@ -196,8 +202,49 @@ test('buildPanel: doors render as a slim bar, not the 4x4 collider', () => {
   const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
   const rect = [...buildPanel([ent('Door', 5, 5)], lookup, geom, null)
     .layers.get('door').values()][0];
-  assert.equal(rect.w, 4);    // length along the wall kept
-  assert.equal(rect.d, 1.5);  // thinned across (was 4)
+  // Door is structure, so its 4 m length becomes 8 tiles — most of the 10-tile
+  // cell, i.e. an opening in the wall run.
+  assert.equal(rect.w, 4 * TILES_PER_METRE);
+  assert.equal(rect.d, DOOR_THICKNESS); // thinned across, in tile units
+  // The bar stays slimmer than its own collider but proud of a 2-tile wall.
+  assert.ok(rect.d < 4 * TILES_PER_METRE);
+  assert.ok(rect.d > 1 * TILES_PER_METRE);
+});
+
+test('buildPanel: a wall run is continuous, not dashed', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  // Two 5 m wall pieces on adjacent cells of the 10-tile grid.
+  const panel = buildPanel([ent('Wall', 0, 0), ent('Wall', 10, 0)], lookup, geom, null);
+  const rects = [...panel.layers.get('wall').values()].sort((a, b) => a.sx - b.sx);
+  assert.equal(rects.length, 2);
+  // 5 m x 1 m collider -> 10 x 2 tiles: the piece spans its whole cell, so the
+  // right edge of one meets the left edge of the next with no gap.
+  for (const r of rects) {
+    assert.equal(r.w, 5 * TILES_PER_METRE);
+    assert.equal(r.d, 1 * TILES_PER_METRE);
+  }
+  assert.equal(rects[0].sx + rects[0].w * geom.cell, rects[1].sx);
+});
+
+test('buildPanel: a free-standing pillar stays a small marker', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const rect = [...buildPanel([ent('WallPillar', 30, 30)], lookup, geom, null)
+    .layers.get('wall').values()][0];
+  // 1 m square -> 2 tiles square: flush with the 2-tile wall thickness, and a
+  // twentieth of the 10-tile cell, so it reads as a post and not as a wall.
+  assert.equal(rect.w, 2);
+  assert.equal(rect.d, 2);
+  assert.ok(rect.w < geom.pitch / 2);
+});
+
+test('buildPanel: content markers are NOT scaled to their colliders', () => {
+  const geom = { minTX: 0, maxTZ: 100, cell: 1, pitch: 10 };
+  const rect = [...buildPanel([ent('Forge', 5, 5)], lookup, geom, null)
+    .layers.get('workstation').values()][0];
+  // Clearance colliders overstate the visual footprint and paint over the
+  // walls, so markers keep the table's figures.
+  assert.equal(rect.w, 4);
+  assert.equal(rect.d, 4);
 });
 
 test('detectStairRuns: straight flight is a 2-point centerline', () => {

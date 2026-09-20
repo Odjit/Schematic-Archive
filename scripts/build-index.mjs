@@ -21,15 +21,16 @@ import { existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderFloorplan } from './render-floorplan.mjs';
+import { buildViewModel } from '../src/lib/view-model.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const BUILDS_DIR = join(ROOT, 'builds');
 const OUT_DIR = join(ROOT, 'src', 'data');
 const ASSET_OUT_ROOT = join(ROOT, 'public', 'entry-assets');
-// The prefab table lives under public/ so it's served as a static asset for
-// the browser-side Canvas viewer; this script reads the same single file.
-const PREFAB_TABLE_PATH = join(ROOT, 'public', 'data', 'render-prefabs.json');
+// Build-time input only: the browser gets each entry's resolved view.json
+// instead of this 418 KB table (see src/lib/view-model.mjs).
+const PREFAB_TABLE_PATH = join(ROOT, 'data', 'render-prefabs.json');
 
 // Lazily loaded once at startup; null if the table isn't built yet, in which
 // case floor-plan generation is skipped (the build still succeeds).
@@ -100,6 +101,7 @@ async function copyAssetsFor(folder, manifest) {
  *
  * Mutates these fields onto `manifest`:
  *   __hasFloorplan   — boolean, did we successfully write floorplan.svg
+ *   __hasViewModel   — boolean, did we successfully write view.json
  *   __derivedPacks   — string[] of DLC slugs from the schematic's prefabs
  *                      (unioned with manifest.dlc downstream in shapeForIndex)
  *   __storedItems    — { inventories, stacks } | null — non-empty container
@@ -113,6 +115,7 @@ async function copyAssetsFor(folder, manifest) {
  */
 async function processSchematic(folder, manifest, outDir) {
   manifest.__hasFloorplan = false;
+  manifest.__hasViewModel = false;
   manifest.__derivedPacks = [];
   manifest.__storedItems = null;
   manifest.__objectCount = null;
@@ -160,6 +163,7 @@ async function processSchematic(folder, manifest, outDir) {
   if (prefabTable) {
     manifest.__derivedPacks = derivePacks(schematic, prefabTable);
     manifest.__hasFloorplan = await writeFloorplan(schematic, manifest, outDir);
+    manifest.__hasViewModel = await writeViewModel(schematic, manifest, outDir);
   }
 }
 
@@ -239,6 +243,27 @@ async function writeFloorplan(schematic, manifest, outDir) {
   }
 }
 
+/**
+ * Write the slim render payload the Canvas viewer fetches (see
+ * src/lib/view-model.mjs). This replaces the viewer downloading the raw
+ * .schematic plus the whole prefab table and classifying in the browser.
+ */
+async function writeViewModel(schematic, manifest, outDir) {
+  try {
+    const vm = buildViewModel(schematic, prefabTable);
+    const json = JSON.stringify(vm);
+    await writeFile(join(outDir, 'view.json'), json + '\n');
+    log(
+      `view model ${manifest.id}: ${vm.entities.length} placed, ` +
+      `${vm.prefabs.length} distinct prefabs, ${(json.length / 1024).toFixed(0)} KB`
+    );
+    return true;
+  } catch (e) {
+    warn(`${manifest.id}: view model build failed: ${e.message}`);
+    return false;
+  }
+}
+
 function shapeForIndex(m) {
   // dlc = union(manifest.dlc, packs auto-detected from the schematic).
   // Manual entries are preserved on purpose: they cover things the schematic
@@ -280,7 +305,10 @@ function shapeForIndex(m) {
     // otherwise so the gallery can treat its absence as "nothing stored".
     storedItems: m.__storedItems ?? undefined,
     // Only advertise the floor plan when the build actually wrote one.
-    floorplan: m.__hasFloorplan ? 'floorplan.svg' : undefined
+    floorplan: m.__hasFloorplan ? 'floorplan.svg' : undefined,
+    // The interactive viewer's payload (src/lib/view-model.mjs). Absent means
+    // the entry page shows the static SVG alone.
+    viewModel: m.__hasViewModel ? 'view.json' : undefined
   };
 }
 

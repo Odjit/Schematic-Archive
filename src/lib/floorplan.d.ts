@@ -76,6 +76,17 @@ export const FALLBACK_D: number;
 export const FALLBACK_Y0: number;
 export const FALLBACK_Y1: number;
 export const FLOOR_HEIGHT_M: number;
+/**
+ * Tile units per world metre. tilePos steps are 0.5 m; the prefab table's w/d
+ * are metres straight off the collider AABB. See floorplan.mjs for the note on
+ * why buildPanel does not apply this and the iso renderer does.
+ */
+export const TILES_PER_METRE: number;
+/**
+ * Categories the plan draws at true size (walls, fences, doors) because they
+ * tile edge to edge. Everything else stays a compact symbol.
+ */
+export const STRUCTURE_CATEGORIES: ReadonlySet<string>;
 export const SLICE_EDGE_EPS: number;
 
 // ---------------------------------------------------------------------------
@@ -256,6 +267,15 @@ export interface BuildPanelOptions {
   /** Collect a per-entity hit-rect list (PanelResult.hits) for tooltips. */
   collectHits?: boolean;
 }
+
+/**
+ * Build the shared "is this entity in the current view?" predicate (Y band +
+ * stairCells). Used by buildPanel and by the isometric scene builder.
+ */
+export function makeEntityFilter(
+  yFilter: YFilter | null,
+  stairCells?: Set<string> | null,
+): (entity: SchematicEntity, cls: PrefabLookupResult) => boolean;
 
 export function buildPanel(
   entities: SchematicEntity[] | undefined,

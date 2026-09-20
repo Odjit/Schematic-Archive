@@ -22,11 +22,10 @@ const _ = all; // kept for future related-entries logic
 
 const assetBase = withBase(`/entry-assets/${entry.id}`);
 const screenshots = entry.screenshots.map(s => `${assetBase}/${s}`);
-// Same URL as downloadHref but referenced from the FloorPlanViewer too.
-const schematicHref = `${assetBase}/${entry.schematicFile}`;
-const downloadHref = schematicHref;
+const downloadHref = `${assetBase}/${entry.schematicFile}`;
 const floorplanHref = entry.floorplan ? `${assetBase}/${entry.floorplan}` : null;
-const prefabTableHref = withBase('/data/render-prefabs.json');
+// The viewer reads the slim build-time payload, not the raw schematic.
+const viewModelHref = entry.viewModel ? `${assetBase}/${entry.viewModel}` : null;
 const browseHref = withBase('/browse');
 ---
 
@@ -54,15 +53,22 @@ const browseHref = withBase('/browse');
               with per-floor slices is shown instead.
             </p>
             <div class="entry__floorplan-frame">
-              <FloorPlanViewer
-                client:only="preact"
-                schematicUrl={schematicHref}
-                prefabTableUrl={prefabTableHref}
-                entryTitle={entry.title}
-              />
-              <noscript>
+              {viewModelHref ? (
+                <>
+                  <FloorPlanViewer
+                    client:only="preact"
+                    viewModelUrl={viewModelHref}
+                    entryTitle={entry.title}
+                  />
+                  <noscript>
+                    <img src={floorplanHref} alt={`Top-down floor plan of ${entry.title}`} loading="lazy" />
+                  </noscript>
+                </>
+              ) : (
+                /* No view model (schematic missing or unreadable) — the static
+                   SVG is all we have, so show it to everyone. */
                 <img src={floorplanHref} alt={`Top-down floor plan of ${entry.title}`} loading="lazy" />
-              </noscript>
+              )}
             </div>
           </section>
         )}

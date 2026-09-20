@@ -31,12 +31,40 @@
 .fpv__title  { font-weight: 600; color: var(--color-text); }
 .fpv__sub    { font-size: 0.85rem; }
 
-/* Controls: floor buttons + height slider. */
+/* Controls: projection switch + floor buttons. */
 .fpv__controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-5);
+}
+
+/* Projection switch — segmented control, visually distinct from the floor
+ * pills next to it so the two groups don't read as one row of options. */
+.fpv__modes {
+  display: inline-flex;
+  border: 1px solid var(--color-border, #d6cbb0);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.fpv__mode-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 0;
+  background: var(--color-surface-2);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+.fpv__mode-btn + .fpv__mode-btn {
+  border-left: 1px solid var(--color-border, #d6cbb0);
+}
+.fpv__mode-btn:hover { color: var(--color-text); }
+.fpv__mode-btn.is-active {
+  background: var(--color-accent, #b88a3a);
+  color: #1c160c;
+  font-weight: 600;
 }
 
 .fpv__floors {

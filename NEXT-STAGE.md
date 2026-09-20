@@ -6,21 +6,68 @@ Preact, deploys to GitHub Pages.
 ## Shipped
 - Static top-down floor-plan SVGs (build time) **and** an interactive Canvas
   viewer on entry pages, both from one shared renderer.
-- Viewer: floor buttons, layer toggles, pan/zoom (wheel/drag/pinch + on-screen
-  controls), hover tooltips.
+- Viewer: **Plan / Isometric** switch, floor buttons, layer toggles, pan/zoom
+  (wheel/drag/pinch + on-screen controls), hover tooltips in both projections.
 - Rendering: grid-pitch floor fill, contiguous stairs with up-arrows on their
   origin floor, slim doors, shape-aware grid-snapped pavement/carpet ribbons,
   Servant/NPC classification (0 unknown prefabs).
-- `npm test` (node:test over the pure lib). Mobile horizontal-overflow fixed.
+- **Build-time view model**: the viewer fetches a per-entry `view.json`
+  (~14 KB gz) instead of the raw `.schematic` + the whole prefab table
+  (~190 KB gz, ~2.5 MB parsed). Classification happens at build time; the
+  browser just hydrates and runs the same geometry passes.
+- `npm test` (node:test over the pure libs). Mobile horizontal-overflow fixed.
 
 ## Key files
 - `src/lib/floorplan.mjs` (+ `.d.ts`) — shared geometry: `buildPanel`,
-  `detectFloors`/`detectGridPitch`/`detectStairRuns`, `ribbonArms`.
+  `detectFloors`/`detectGridPitch`/`detectStairRuns`, `ribbonArms`,
+  `makeEntityFilter` (the Y-band/stairCells predicate both renderers use).
 - `src/lib/floorplan-canvas.ts` — Canvas paint: `drawPanel`, themes, transform.
+- `src/lib/isoplan.mjs` (+ `.d.ts`) — isometric scene: `buildIsoScene`,
+  `computeIsoLayout`, painter's-order sort, projected cull bounds.
+- `src/lib/isoplan-canvas.ts` — `drawIsoScene`, `hitTestIso`.
+  Paths in both views come from the one `buildRibbonRects` pass in
+  `floorplan.mjs`, so a walkway has the same shape either way.
+- `src/lib/view-model.mjs` (+ `.d.ts`) — `buildViewModel` (build) /
+  `hydrateViewModel` (browser); defines the `view.json` format.
 - `src/components/FloorPlanViewer.tsx` (+ `floor-plan-viewer.css`) — the island.
 - `scripts/render-floorplan.mjs` — build-time SVG (the `<noscript>` fallback).
-- `scripts/build-render-prefabs.mjs` — prefab classifier → `public/data/`.
-- `tests/floorplan.test.mjs`.
+- `scripts/build-render-prefabs.mjs` — prefab classifier → `data/`
+  (build-time input only; it is no longer served to the browser).
+- `tests/floorplan.test.mjs`, `tests/view-model.test.mjs`,
+  `tests/isoplan.test.mjs`.
+
+## Footprint units (resolved, deliberately partial)
+`tilePos` is in **half-metre** units (verified: 0.5 m of world position per
+step over 2048 entity pairs, and the detected 10-tile pitch is the 5 m castle
+cell), but the prefab table's `w`/`d` come off the collider AABB in **metres**.
+The two were treated as the same unit, so everything drew at half size.
+
+`TILES_PER_METRE` in `floorplan.mjs` is the conversion. Who applies it:
+- `buildIsoScene` — **everything**. It's a massing model, so true volume is
+  the point.
+- `buildPanel` — **`STRUCTURE_CATEGORIES` only** (wall, fence, door). These
+  tile edge to edge, so half scale was a visible defect: wall runs came out
+  dashed, and the 1 m pillars at the joints bulged outside the line instead of
+  closing it.
+
+**Wall pivots move when a piece is flipped.** V Rising anchors a wall on its
+face, not its centre-line, so the same piece at rot 0 and rot 180 has a pivot
+one tile (0.5 m) apart — in the samples, horizontal walls sit at z ≡ 0 facing
+one way and z ≡ 9 facing the other, along a single straight run. Drawn on the
+raw pivot, a continuous wall visibly kinks wherever the facing flips (half
+scale hid this, because the wall was dashes anyway). `makeStructureSnap` in
+`floorplan.mjs` snaps each piece's cross-axis coordinate to the dominant phase
+for its orientation. The along-axis is left alone: the same flip shifts it too,
+but that lands as a one-tile seam that the pillars on every joint already
+cover.
+
+A blanket correction in the plan was tried and rejected: content markers carry
+clearance colliders rather than visual footprints, and they paint after the
+walls (`LAYER_ORDER`), so at true size they bury the structure they sit
+against. Pavement and carpet are exactly one cell wide, so correcting them
+turned paths into filled slabs; they stay thin to match how ribbons read in
+game. `DOOR_THICKNESS` is in tile units (3 = 1.5 m), sized to stay proud of the
+now 2-tile wall.
 
 ## Deploy
 - Push to `main` → `.github/workflows/deploy.yml` builds and publishes to Pages.
@@ -33,6 +80,14 @@ Preact, deploys to GitHub Pages.
   `validate-pr.yml` already gates `builds/**` on PRs. Maybe a PR template.
 - **SVG fallback parity**: per-floor SVG slices still cut stairs by height;
   could reuse the viewer's whole-flight logic.
+- **Iso follow-ups**: stair pieces carry a zero-height collider, so flights
+  render flat instead of as ramps; near-side walls still occlude the rooms
+  behind them (per-floor selection is the workaround; a near-quadrant cull or
+  a cutaway toggle would help — `buildIsoScene` already takes
+  `wallHeightScale`).
+- **Build-time iso renders** would give card thumbnails and per-entry OG
+  images for entries without good screenshots (`buildIsoScene` is pure, so a
+  Node script can rasterize it with sharp the same way the SVG path does).
 - **Per-entry OG images** (see `OG_IMAGE_TODO` in `deploy.yml`).
 - **Carpets** are untested on real data (no demo build has them) — add one.
 - Pavement doesn't bridge openings wider than ~2 cells; revisit if it shows up.

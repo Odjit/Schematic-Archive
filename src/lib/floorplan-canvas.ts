@@ -17,7 +17,7 @@ import {
   LAYER_ORDER,
   type PanelResult,
   type PanelLayout,
-  type PrefabTable,
+  type PrefabCategory,
   type StairRun,
 } from './floorplan';
 
@@ -66,12 +66,13 @@ export interface Transform {
 export const IDENTITY_TRANSFORM: Transform = { panX: 0, panY: 0, zoom: 1 };
 
 /**
- * Build a categoryId → color map from the prefab table's category list.
- * Cheap to call once per viewer mount; pass the result into drawPanel.
+ * Build a categoryId → color map from a category list (the prefab table's, or
+ * the subset a view model carries). Cheap to call once per viewer mount; pass
+ * the result into drawPanel.
  */
-export function buildPalette(prefabTable: PrefabTable): Map<string, string> {
+export function buildPalette(categories: PrefabCategory[]): Map<string, string> {
   const palette = new Map<string, string>();
-  for (const cat of prefabTable.categories) palette.set(cat.id, cat.color);
+  for (const cat of categories) palette.set(cat.id, cat.color);
   return palette;
 }
 

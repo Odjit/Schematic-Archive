@@ -57,6 +57,12 @@ export interface GalleryEntry {
    * placeholder won't get one).
    */
   floorplan?: string;
+  /**
+   * The interactive viewer's payload — entry-assets/<id>/view.json, written
+   * by the same build pass as the floor plan (src/lib/view-model.mjs).
+   * Absent when no real schematic was present.
+   */
+  viewModel?: string;
   warnings?: string | null;
   /**
    * Present only when the schematic ships containers with items still in
