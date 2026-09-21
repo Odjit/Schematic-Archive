@@ -25,6 +25,11 @@ Preact, deploys to GitHub Pages.
 - `src/lib/isoplan.mjs` (+ `.d.ts`) — isometric scene: `buildIsoScene`,
   `computeIsoLayout`, painter's-order sort, projected cull bounds.
 - `src/lib/isoplan-canvas.ts` — `drawIsoScene`, `hitTestIso`.
+  Stair flights are drawn as a stepped ramp per traced run
+  (`buildStairSteps`): the pieces themselves carry no rise, only Lower/Upper
+  halves pinned to the two storey heights, so the climb comes from each cell's
+  distance along the run path that `detectStairRuns` traces. Note that path is
+  a simplified centreline (endpoints plus elbows), not one point per cell.
   Paths in both views come from the one `buildRibbonRects` pass in
   `floorplan.mjs`, so a walkway has the same shape either way.
 - `src/lib/view-model.mjs` (+ `.d.ts`) — `buildViewModel` (build) /
@@ -80,11 +85,7 @@ now 2-tile wall.
   `validate-pr.yml` already gates `builds/**` on PRs. Maybe a PR template.
 - **SVG fallback parity**: per-floor SVG slices still cut stairs by height;
   could reuse the viewer's whole-flight logic.
-- **Iso follow-ups**: stairs are drawn as a low platform (`STAIR_PLATFORM_M`)
-  because a full-cell piece at collider height is a solid 5 m block and a
-  flight becomes a wall of cubes; the real fix is a stepped ramp, and
-  `detectStairRuns` already knows each flight's cells and direction to build
-  one from. Near-side walls still occlude the rooms behind them — that's
+- **Iso follow-ups**: near-side walls still occlude the rooms behind them — that's
   geometrically correct (a 5 m wall hides ~1.7 cells of floor at this camera
   angle), which is why dollhouse views cut walls down; `buildIsoScene` takes
   `wallHeightScale` for that, but at 0.5 the wall line stops reading as walls,

@@ -30,6 +30,7 @@ import {
   TILES_PER_METRE,
   UNKNOWN_CATEGORY,
   buildRibbonRects,
+  detectStairRuns,
   makeEntityFilter,
   makeStructureSnap,
   swapsWidthDepth,
@@ -49,16 +50,107 @@ const MIN_BOX_H = 0.06;
 const WALL_THICKNESS_M = 1;
 
 /**
- * Height a stair piece is drawn at.
+ * Height a stair piece is drawn at when it can't be resolved to a flight.
  *
  * Stairs are a FULL_CELL category, so each piece covers its whole cell — at
  * collider height that's a 5 m solid block per cell, and a flight becomes a
- * wall of cubes. A piece is one section of tread, not a storey of masonry; the
- * flight as a whole is what climbs. Until they're drawn as a real ramp (the
- * per-cell rise is there for the taking in detectStairRuns), a low platform
- * reads as circulation without blocking the room.
+ * wall of cubes. A piece is one section of tread, not a storey of masonry.
+ * Flights that detectStairRuns can trace are drawn as a stepped ramp instead
+ * (see buildStairSteps); this is the fallback for the ones it can't.
  */
 const STAIR_PLATFORM_M = 1.2;
+
+/**
+ * Turn traced stair flights into stepped boxes that actually climb.
+ *
+ * A flight's pieces don't carry their own rise — they come in Lower and Upper
+ * halves pinned to the two storey heights, so extruding them individually can
+ * only ever produce two levels. The rise lives in the flight: detectStairRuns
+ * gives its cells in order from bottom to top, so cell i of n rises (i+1)/n of
+ * a storey, and a box from the floor up to that tread reads as a staircase.
+ *
+ * One box per cell of the traced path, not per piece: a cell usually holds
+ * both a Lower and an Upper piece, and they're the same step.
+ *
+ * @param {Array} runs from detectStairRuns
+ * @param {Set<string>} visibleCells stair cells that survived the view filter
+ * @param {number} pitch placement grid pitch in tiles
+ * @returns {{ steps: Array<object>, handled: Set<string> }}
+ */
+function buildStairSteps(runs, visibleCells, pitch) {
+  const steps = [];
+  const handled = new Set();
+  if (!pitch) return { steps, handled };
+
+  for (const run of runs) {
+    const path = run.path;
+    if (!path || path.length < 2) continue;              // no direction: fall back
+    const cells = run.cells ?? [];
+    if (!cells.some(c => visibleCells.has(`${c.x},${c.z}`))) continue; // not in view
+
+    // The path is a simplified centreline (endpoints plus any elbow), not one
+    // point per cell, so each cell is placed by how far along that line it
+    // falls. Offsetting by one pitch top and bottom makes the first cell a
+    // step up rather than a zero-height sliver, and the last land exactly a
+    // storey up.
+    const total = polylineLength(path);
+    for (const cell of cells) {
+      const along = distanceAlong(path, cell);
+      const rise = ((along + pitch) / (total + pitch)) * FLOOR_HEIGHT_M;
+      const x0 = cell.x - pitch / 2;
+      const z0 = cell.z - pitch / 2;
+      const h = Math.max(MIN_BOX_H, rise);
+      steps.push({
+        x0, z0, w: pitch, d: pitch,
+        by: run.minY,
+        h,
+        layerId: 'stairs',
+        prefab: 'stairs',
+        depth: x0 + z0,
+        ...isoBounds(x0, z0, pitch, pitch, run.minY, h),
+      });
+      handled.add(`${cell.x},${cell.z}`);
+    }
+  }
+  return { steps, handled };
+}
+
+/** Total length of a cell-centre polyline, in tiles. */
+function polylineLength(path) {
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    total += Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z);
+  }
+  return total;
+}
+
+/**
+ * How far along `path` a cell sits, in tiles — the cell is projected onto the
+ * nearest point of the line, so cells in the side lanes of a wide flight land
+ * at the same height as the one beside them on the centreline.
+ */
+function distanceAlong(path, cell) {
+  let bestDist = Infinity;
+  let bestAlong = 0;
+  let acc = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1];
+    const b = path[i];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const segLen = Math.hypot(dx, dz);
+    if (segLen === 0) continue;
+    const t = Math.max(0, Math.min(1,
+      ((cell.x - a.x) * dx + (cell.z - a.z) * dz) / (segLen * segLen)));
+    const dist = Math.hypot(cell.x - (a.x + dx * t), cell.z - (a.z + dz * t));
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestAlong = acc + t * segLen;
+    }
+    acc += segLen;
+  }
+  return bestAlong;
+}
 
 /**
  * Pieces that live on a wall and should share its line. Wall decor is here
@@ -153,6 +245,25 @@ export function buildIsoScene(entities, lookup, geom, yFilter, opts = {}) {
   const snapStructure = makeStructureSnap(
     entities, lookup, pitch, passes, SNAP_TO_WALL_LINE,
   );
+
+  // Stair flights are drawn as one stepped ramp per traced run rather than
+  // per piece (see buildStairSteps). Cells a run covers are recorded so the
+  // pieces standing on them don't get drawn a second time.
+  const visibleStairCells = new Set();
+  for (const e of entities ?? []) {
+    if (!e.tilePos) continue;
+    const cls = lookup.lookup(e.prefab);
+    if (cls.id === 'stairs' && passes(e, cls)) {
+      visibleStairCells.add(`${e.tilePos[0]},${e.tilePos[1]}`);
+    }
+  }
+  const stairs = buildStairSteps(
+    detectStairRuns(entities, lookup, pitch), visibleStairCells, pitch,
+  );
+  for (const step of stairs.steps) {
+    boxes.push(step);
+    if (step.by < yMin) yMin = step.by;
+  }
   for (const r of ribbon.rects) {
     boxes.push({
       x0: r.x0, z0: r.z0, w: r.w, d: r.d,
@@ -183,6 +294,14 @@ export function buildIsoScene(entities, lookup, geom, yFilter, opts = {}) {
     if (pitch && RIBBON_CATEGORIES.has(cls.id)) continue; // handled above
 
     const layerId = LAYER_RANK.has(cls.id) ? cls.id : UNKNOWN_CATEGORY;
+
+    // A stair piece on a cell the ramp already covers is that ramp; count it
+    // for the legend, but don't stack a second box on the step.
+    if (cls.id === 'stairs' && stairs.handled.has(`${e.tilePos[0]},${e.tilePos[1]}`)) {
+      counts.set(layerId, (counts.get(layerId) ?? 0) + 1);
+      placed++;
+      continue;
+    }
 
     // Footprint in tile units. Floors and stairs snap to the placement cell
     // so surfaces are continuous; everything else takes its true collider

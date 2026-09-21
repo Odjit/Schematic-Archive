@@ -24,6 +24,7 @@ const TABLE = {
     { id: 'storage',  label: 'Storage',  color: '#f' },
     { id: 'wall-decor', label: 'Wall decor', color: '#g' },
     { id: 'plant',      label: 'Plant',      color: '#h' },
+    { id: 'stairs',     label: 'Stairs',     color: '#i' },
     { id: 'other',    label: 'Other',    color: '#0' },
   ],
   prefabs: {
@@ -39,6 +40,10 @@ const TABLE = {
     // Wall ornaments carry huge clearance volumes; trees are actually tall.
     Banner:     { category: 'wall-decor', w: 2, d: 2, y0: 0, y1: 12.4 },
     Tree:       { category: 'plant', w: 5, d: 5, y0: 0, y1: 8.3 },
+    // Stair pieces: a full-cell collider with no rise of their own.
+    StairStart: { category: 'stairs', w: 6, d: 6, y0: 0, y1: 0, kind: 'Start', dir: 'North' },
+    StairMid:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 0, kind: 'Part',  dir: 'North' },
+    StairEnd:   { category: 'stairs', w: 6, d: 6, y0: 0, y1: 0, kind: 'End',   dir: 'North' },
   },
 };
 const lookup = buildCategoryLookup(TABLE);
@@ -132,6 +137,54 @@ test('structure shorter than a storey keeps its height', () => {
   // The clamp trims overshoot only — a railing is genuinely short.
   const scene = buildIsoScene([ent('LowRail', 0, 0)], lookup, {}, null);
   assert.equal(boxFor(scene, 'LowRail').h, 1.5);
+});
+
+test('a traced flight climbs a storey, one step per cell', () => {
+  const entities = [
+    ent('StairStart', 0, 0, 5), ent('StairMid', 10, 0, 5), ent('StairEnd', 20, 0, 10),
+  ];
+  const scene = buildIsoScene(entities, lookup, { pitch: 10 }, null);
+  const steps = scene.boxes
+    .filter(b => b.layerId === 'stairs')
+    .sort((a, b) => a.x0 - b.x0);
+
+  // One box per cell of the run, not per piece, and each sits on the floor the
+  // flight rises from.
+  assert.equal(steps.length, 3);
+  assert.ok(steps.every(s => s.by === 5), 'every step starts at the lower floor');
+  assert.ok(steps.every(s => s.w === 10 && s.d === 10), 'each covers its cell');
+
+  // Heights climb bottom to top and reach exactly one storey.
+  const heights = steps.map(s => +s.h.toFixed(3));
+  assert.deepEqual(heights, [5 / 3, 10 / 3, 5].map(h => +h.toFixed(3)));
+  for (let i = 1; i < heights.length; i++) {
+    assert.ok(heights[i] > heights[i - 1], 'each step is higher than the last');
+  }
+
+  // Pieces still count for the legend even though they share a box.
+  assert.equal(scene.counts.get('stairs'), 3);
+  assert.equal(scene.placed, 3);
+});
+
+test('the climb follows the run direction, not the tile order', () => {
+  // Same flight built the other way round: Start at the high X end.
+  const entities = [
+    ent('StairEnd', 0, 0, 10), ent('StairMid', 10, 0, 5), ent('StairStart', 20, 0, 5),
+  ];
+  const scene = buildIsoScene(entities, lookup, { pitch: 10 }, null);
+  const steps = scene.boxes
+    .filter(b => b.layerId === 'stairs')
+    .sort((a, b) => a.x0 - b.x0);
+  // Tallest step is now at the low-X end, where the flight tops out.
+  assert.ok(steps[0].h > steps[2].h, 'the ramp climbs toward the End piece');
+});
+
+test('stairs with no traceable run fall back to a low platform', () => {
+  // A lone Part piece: no Start/End, so detectStairRuns can't orient it.
+  const scene = buildIsoScene([ent('StairMid', 0, 0, 5)], lookup, { pitch: 10 }, null);
+  const step = scene.boxes.find(b => b.layerId === 'stairs');
+  assert.ok(step.h <= 1.2, 'drawn as a platform, not a 5 m block');
+  assert.equal(scene.counts.get('stairs'), 1);
 });
 
 test('wallHeightScale only touches walls', () => {
